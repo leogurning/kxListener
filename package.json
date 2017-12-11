@@ -1,0 +1,27 @@
+{
+  "name": "kxlistener",
+  "version": "1.0.0",
+  "description": "kaxet api for listener use case",
+  "main": "serverLs.js",
+  "scripts": {
+    "start": "node serverLs.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bcrypt-nodejs": "*",
+    "body-parser": "*",
+    "bootstrap": "*",
+    "cloudinary": "^1.9.1",
+    "core-js": "*",
+    "express": "*",
+    "express-fileupload": "^0.3.0",
+    "jquery": "*",
+    "jsonwebtoken": "*",
+    "mongoose": "*",
+    "mongoose-aggregate-paginate": "^1.0.6",
+    "mongoose-paginate": "*",
+    "morgan": "*"
+  },
+  "author": "Leonard Gurning",
+  "license": "ISC"
+}
