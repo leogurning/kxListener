@@ -8,6 +8,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@google-cloud/storage": "^1.5.2",
     "bcrypt-nodejs": "*",
     "body-parser": "*",
     "bootstrap": "*",
@@ -20,7 +21,12 @@
     "mongoose": "*",
     "mongoose-aggregate-paginate": "^1.0.6",
     "mongoose-paginate": "*",
-    "morgan": "*"
+    "morgan": "*",
+    "popper": "^1.0.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/leogurning/kxListener.git"
   },
   "author": "Leonard Gurning",
   "license": "ISC"
