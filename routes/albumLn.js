@@ -2,6 +2,21 @@ const mongoose = require( 'mongoose' );
 const Album = require('../models/album');
 const config = require('../config');
 
+var merge = function() {
+    var obj = {},
+        i = 0,
+        il = arguments.length,
+        key;
+    for (; i < il; i++) {
+        for (key in arguments[i]) {
+            if (arguments[i].hasOwnProperty(key)) {
+                obj[key] = arguments[i][key];
+            }
+        }
+    }
+    return obj;
+};
+
 exports.getalbum = function(req, res, next){
 	Album.find({_id:req.params.id}).exec(function(err, album){
         if(err) { 
@@ -127,6 +142,8 @@ exports.albumaggregateLn = function(req, res, next){
     const albumyear = req.body.albumyear || req.query.albumyear;
     const albumgenre = req.body.albumgenre || req.query.albumgenre;
     const status = req.body.status || req.query.status;
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
     var totalcount;
 
     let limit = parseInt(req.query.limit);
@@ -135,79 +152,39 @@ exports.albumaggregateLn = function(req, res, next){
     let query = {};
 
     if(!limit || limit < 1) {
-	limit = 10;
+	    limit = 10;
     }
 
     if(!page || page < 1) {
-	page = 1;
+	    page = 1;
     }
 
     if(!sortby) {
-	sortby = 'albumname';
+	    sortby = 'albumname';
     }
 
     // returns albums records based on query
-    if (!status) {
-
-        if (!albumgenre) {
-            if (!artistid) {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    albumyear: new RegExp(albumyear,'i')};
-            } else {
-                query = { albumname: new RegExp(albumname,'i'),
-                    artistid:artistid, 
-                    albumyear: new RegExp(albumyear,'i')};
-            }
-
-        }else {
-            if (!artistid) {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    albumyear: new RegExp(albumyear,'i'), 
-                    albumgenre: albumgenre};
-            }else {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    albumyear: new RegExp(albumyear,'i'), 
-                    artistid:artistid,
-                    albumgenre: albumgenre};
-            }
-        }
-
-    }else{
-
-        if (!albumgenre) {
-            if (!artistid) {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    albumyear: new RegExp(albumyear,'i'), 
-                    status: status};
-            } else{
-                query = { albumname: new RegExp(albumname,'i'),
-                    artistid:artistid, 
-                    albumyear: new RegExp(albumyear,'i'), 
-                    status: status};
-            }
-
-        }else {
-            if (!artistid) {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    albumyear: new RegExp(albumyear,'i'), 
-                    albumgenre: albumgenre, 
-                    status: status};
-            } else {
-                query = { albumname: new RegExp(albumname,'i'), 
-                    artistid:artistid,
-                    albumyear: new RegExp(albumyear,'i'), 
-                    albumgenre: albumgenre, 
-                    status: status};
-            }
-        }
-    }		
-
+    query = { albumname: new RegExp(albumname,'i'), 
+        albumyear: new RegExp(albumyear,'i'),
+        "msconfigdetails.group": msconfiggrp,
+        "msconfigdetails.status": msconfigsts
+    };
+    
+    if (artistid) {
+        query = merge(query, {artistid:artistid});
+    }
+    if (albumgenre) {
+        query = merge(query, {albumgenre: albumgenre});
+    }  
+    if (status) {
+        query = merge(query, {status:status});
+    }
     var options = {
         page: page,
         limit: limit,
         sortBy: sortby
     }
-
+    console.log(query);
     var aggregate = Album.aggregate();        
     var olookup = {
             from: 'artist',
@@ -215,12 +192,21 @@ exports.albumaggregateLn = function(req, res, next){
             foreignField: '_id',
             as: 'artistdetails'
         };
+    var olookup1 = {
+        from: 'msconfig',
+        localField: 'albumgenre',
+        foreignField: 'code',
+        as: 'msconfigdetails'
+    };    
+    var ounwind = 'artistdetails';
+    var ounwind1 = 'msconfigdetails';
     var oproject = {
         labelid:1,
         artistid:1,
         albumname: 1,
         albumyear: 1,
         albumgenre:1,
+        "genrevalue": "$msconfigdetails.value",
         objartistid:1,
         "artist": "$artistdetails.artistname",
         albumprice:1,
@@ -228,13 +214,14 @@ exports.albumaggregateLn = function(req, res, next){
         albumphotopath:1,
         albumphotoname:1        
     };
-    var ounwind = 'artist';
-    //var osort = { "$sort": { sortby: 1}};
-    aggregate.match(query).lookup(olookup);
-    aggregate.project(oproject);
-    aggregate.unwind(ounwind);
-    //aggregate.sort(osort);
 
+    //var osort = { "$sort": { sortby: 1}};
+    aggregate.lookup(olookup).unwind(ounwind);
+    aggregate.lookup(olookup1).unwind(ounwind1);  
+    aggregate.match(query);  
+    aggregate.project(oproject);
+    //aggregate.sort(osort);
+    
     Album.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
         if(err) 
         {

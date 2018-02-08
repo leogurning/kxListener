@@ -80,6 +80,15 @@ apiRoutes.post('/songln/reportln', songLn.songreportLn);
 apiRoutes.put('/songbuyincrement/:id', songLn.songbuyincrement);
 apiRoutes.get('/songln/:id', songLn.getsong); // API get song details of the label
 apiRoutes.get('/songaggregate/:id', songLn.getsongaggregate); // API returns song details of given song id
+apiRoutes.get('/msconfiglist/:group', songLn.getmsconfigbygroup); // API returns msconfig details of given groupid
+apiRoutes.post('/songpurchase/:id', songLn.savesongpurchase);
+apiRoutes.post('/userplaylist/:id', songLn.addplaylist);
+apiRoutes.delete('/userplaylist/:id', songLn.removeplaylist); //API removes the playlist of given playlist id
+apiRoutes.get('/userplaylist/:id', songLn.getuserplaylist); // API returns user playlist details of given userid
+apiRoutes.post('/playlist/:id', songLn.addsongtoplaylist);
+apiRoutes.delete('/playlist/:id', songLn.removesongfrplaylist); //API removes the song from playlist id
+apiRoutes.get('/playlist/:id', songLn.getsongplaylist); // API returns user playlist details of given userid
+apiRoutes.post('/ispurchased/:id', songLn.isPurchased); // API returns whether the song is purchased by listener
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/index.html'));
