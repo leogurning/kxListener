@@ -5,6 +5,7 @@ const Purchaselog = require('../models/purchaselog');
 const Playlist = require('../models/playlist');
 const Userplaylist = require('../models/userplaylist');
 const config = require('../config');
+const Songpurchase = require('../models/songpurchase');
 
 var ObjId = mongoose.Types.ObjectId;
 var merge = function() {
@@ -103,6 +104,7 @@ exports.getsongaggregate = function(req, res, next){
         songprice:1,
         "artist": "$artistdetails.artistname",
         "album": "$albumdetails.albumname",
+        "albumphoto": "$albumdetails.albumphotopath",
         "albumyear": "$albumdetails.albumyear",
         objartistid:1,
         objalbumid:1,
@@ -240,6 +242,7 @@ exports.songaggregateLn = function(req, res, next){
         songprice:1,
         "artist": "$artistdetails.artistname",
         "album": "$albumdetails.albumname",
+        "albumphoto": "$albumdetails.albumphotopath",
         "albumyear": "$albumdetails.albumyear",
         objartistid:1,
         objalbumid:1,
@@ -598,14 +601,14 @@ exports.getsongplaylist = function(req, res, next){
 
 exports.isPurchased = function(req, res, next){
     // Check for registration errors
-     const userid = req.params.id;
+     const listenerid = req.params.id;
      const songid = req.body.songid;
 
-     if (!userid || !songid) {
+     if (!listenerid || !songid) {
          return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
      }
  
-     Purchaselog.findOne({ userid: userid, songid: songid}, function(err, resPurchased) {
+     Songpurchase.findOne({ listenerid: listenerid, songid: songid}, function(err, resPurchased) {
          if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
  
          // If user is not unique, return error
@@ -624,4 +627,253 @@ exports.isPurchased = function(req, res, next){
         });
     });
 
+}
+
+exports.topsongaggregate = function(req, res, next){
+    
+    const status = req.body.status || req.query.status;
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
+    var totalcount;
+    
+    let limit = parseInt(req.query.limit);
+    let page = parseInt(req.body.page || req.query.page);
+    let sortby = req.body.sortby || req.query.sortby;
+    let query = {};
+    //let qmatch = {};
+    
+    if(!limit || limit < 1) {
+        limit = 10;
+    }
+    
+    if(!page || page < 1) {
+        page = 1;
+    }
+    
+    // returns songs records based on query
+    query = { "msconfigdetails.group": msconfiggrp,
+        "msconfigdetails.status": msconfigsts
+    };
+
+    if (status) {
+        query = merge(query, {status:status});
+    }
+    console.log(query);
+
+    if(!sortby) {
+        var options = {
+            page: page,
+            limit: limit
+        }
+    }
+    else {
+        var options = {
+            page: page,
+            limit: limit,
+            sortBy: sortby
+        }
+    }
+    
+    var aggregate = Song.aggregate();        
+    var olookup = {
+        from: 'artist',
+        localField: 'objartistid',
+        foreignField: '_id',
+        as: 'artistdetails'
+    };
+    var olookup1 = {
+        from: 'album',
+        localField: 'objalbumid',
+        foreignField: '_id',
+        as: 'albumdetails'
+    };
+    var olookup2 = {
+        from: 'msconfig',
+        localField: 'songgenre',
+        foreignField: 'code',
+        as: 'msconfigdetails'
+    };    
+    var ounwind = 'artistdetails';
+    var ounwind1 = 'albumdetails';
+    var ounwind2 = 'msconfigdetails';
+
+    var oproject = { 
+        _id:1,
+        labelid:1,
+        artistid:1,
+        albumid:1,
+        songname: 1,
+        songgenre:1,
+        "genrevalue": "$msconfigdetails.value",
+        songlyric:1,
+        songprice:1,
+        "artist": "$artistdetails.artistname",
+        "album": "$albumdetails.albumname",
+        "albumphoto": "$albumdetails.albumphotopath",
+        "albumyear": "$albumdetails.albumyear",
+        objartistid:1,
+        objalbumid:1,
+        songpublish:1,
+        songbuy:1,
+        status:1,
+        songprvwpath:1,
+        songprvwname:1,    
+        songfilepath:1,
+        songfilename:1,
+    };
+        
+    
+    aggregate.lookup(olookup).unwind(ounwind);
+    aggregate.lookup(olookup1).unwind(ounwind1);  
+    aggregate.lookup(olookup2).unwind(ounwind2);  
+    aggregate.match(query);  
+    aggregate.project(oproject);  
+    
+    if(!sortby) {
+        var osort = { songbuy:-1};
+        aggregate.sort(osort);
+    }
+    Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+        if(err) 
+        {
+            res.status(400).json({
+                success: false, 
+                message: err.message
+            });
+        }
+        else
+        { 
+            res.status(201).json({
+                success: true, 
+                data: results,
+                npage: pageCount,
+                totalcount: count
+            });
+        }
+    })
+}
+
+exports.recentsongaggregate = function(req, res, next){
+    
+    const status = req.body.status || req.query.status;
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
+    var totalcount;
+    
+    let limit = parseInt(req.query.limit);
+    let page = parseInt(req.body.page || req.query.page);
+    let sortby = req.body.sortby || req.query.sortby;
+    let query = {};
+    //let qmatch = {};
+    
+    if(!limit || limit < 1) {
+        limit = 10;
+    }
+    
+    if(!page || page < 1) {
+        page = 1;
+    }
+    
+    // returns songs records based on query
+    query = { "msconfigdetails.group": msconfiggrp,
+        "msconfigdetails.status": msconfigsts
+    };
+
+    if (status) {
+        query = merge(query, {status:status});
+    }
+    console.log(query);
+
+    if(!sortby) {
+        var options = {
+            page: page,
+            limit: limit
+        }
+    }
+    else {
+        var options = {
+            page: page,
+            limit: limit,
+            sortBy: sortby
+        }
+    }
+    
+    var aggregate = Song.aggregate();        
+    var olookup = {
+        from: 'artist',
+        localField: 'objartistid',
+        foreignField: '_id',
+        as: 'artistdetails'
+    };
+    var olookup1 = {
+        from: 'album',
+        localField: 'objalbumid',
+        foreignField: '_id',
+        as: 'albumdetails'
+    };
+    var olookup2 = {
+        from: 'msconfig',
+        localField: 'songgenre',
+        foreignField: 'code',
+        as: 'msconfigdetails'
+    };    
+    var ounwind = 'artistdetails';
+    var ounwind1 = 'albumdetails';
+    var ounwind2 = 'msconfigdetails';
+
+    var oproject = { 
+        _id:1,
+        labelid:1,
+        artistid:1,
+        albumid:1,
+        songname: 1,
+        songgenre:1,
+        "genrevalue": "$msconfigdetails.value",
+        songlyric:1,
+        songprice:1,
+        "artist": "$artistdetails.artistname",
+        "album": "$albumdetails.albumname",
+        "albumphoto": "$albumdetails.albumphotopath",
+        "albumyear": "$albumdetails.albumyear",
+        objartistid:1,
+        objalbumid:1,
+        songpublish:1,
+        songbuy:1,
+        status:1,
+        songprvwpath:1,
+        songprvwname:1,    
+        songfilepath:1,
+        songfilename:1,
+        createddt:1
+    };
+        
+    
+    aggregate.lookup(olookup).unwind(ounwind);
+    aggregate.lookup(olookup1).unwind(ounwind1);  
+    aggregate.lookup(olookup2).unwind(ounwind2);  
+    aggregate.match(query);  
+    aggregate.project(oproject);  
+    
+    if(!sortby) {
+        var osort = { createddt:-1};
+        aggregate.sort(osort);
+    }
+    Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+        if(err) 
+        {
+            res.status(400).json({
+                success: false, 
+                message: err.message
+            });
+        }
+        else
+        { 
+            res.status(201).json({
+                success: true, 
+                data: results,
+                npage: pageCount,
+                totalcount: count
+            });
+        }
+    })
 }

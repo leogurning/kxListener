@@ -241,3 +241,70 @@ exports.albumaggregateLn = function(req, res, next){
         }
     })
 }
+
+exports.getalbumaggregateLn = function(req, res, next){
+    const albumid = new mongoose.Types.ObjectId(req.params.id);
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
+
+    let query = {};
+
+    if (!albumid) {
+        return res.status(422).send({ error: 'Parameter data is not correct or incompleted.'});
+    }else{
+        query = { _id:albumid };
+    }     
+
+    var aggregate = Album.aggregate();        
+    var olookup = {
+            from: 'artist',
+            localField: 'objartistid',
+            foreignField: '_id',
+            as: 'artistdetails'
+        };
+    var olookup1 = {
+        from: 'msconfig',
+        localField: 'albumgenre',
+        foreignField: 'code',
+        as: 'msconfigdetails'
+    };    
+    var ounwind = 'artistdetails';
+    var ounwind1 = 'msconfigdetails';
+    var oproject = {
+        labelid:1,
+        artistid:1,
+        albumname: 1,
+        albumyear: 1,
+        albumgenre:1,
+        "genrevalue": "$msconfigdetails.value",
+        objartistid:1,
+        "artist": "$artistdetails.artistname",
+        albumprice:1,
+        status:1,
+        albumphotopath:1,
+        albumphotoname:1        
+    };
+
+    //var osort = { "$sort": { sortby: 1}};
+    aggregate.lookup(olookup).unwind(ounwind);
+    aggregate.lookup(olookup1).unwind(ounwind1);  
+    aggregate.match(query);  
+    aggregate.project(oproject);
+    
+    aggregate.exec(function(err, result) {
+        if(err) 
+        {
+            res.status(400).json({
+                success: false, 
+                message: err.message
+            });
+        }
+        else
+        {
+            res.status(201).json({
+                success: true, 
+                data: result
+            });
+        }
+    });  
+}

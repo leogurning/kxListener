@@ -22,7 +22,8 @@
     "mongoose-aggregate-paginate": "^1.0.6",
     "mongoose-paginate": "*",
     "morgan": "*",
-    "popper": "^1.0.1"
+    "popper": "^1.0.1",
+    "redis": "^2.8.0"
   },
   "repository": {
     "type": "git",

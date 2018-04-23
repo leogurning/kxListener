@@ -128,10 +128,11 @@ exports.updateUser = function(req, res, next){
     const email = req.body.email;
     const contactno = req.body.contactno;
     const bankaccno = req.body.bankaccno;
+    const bankcode = req.body.bankcode;
     const bankname = req.body.bankname;
     const userid = req.params.id;
 
-    if (!name || !email || !contactno || !bankaccno || !bankname || !userid) {
+    if (!name || !email || !userid) {
         return res.status(422).json({ success: false, message: 'Posted data is not correct or incompleted.'});
     } else {
 	User.findById(userid).exec(function(err, user){
@@ -142,6 +143,7 @@ exports.updateUser = function(req, res, next){
 			user.email = email;
             user.contactno = contactno;
             user.bankaccno = bankaccno;
+            user.bankcode = bankcode;
             user.bankname = bankname;
 		}
 		user.save(function(err){
@@ -171,7 +173,7 @@ exports.updatePassword = function(req, res, next){
                     if (isMatch && !err) {
                         
                         user.password = password;
-
+                        
                         user.save(function(err) {
                             if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
 
@@ -233,4 +235,69 @@ exports.checkFbListener = function(req, res, next){
             });
         });
     });
+}
+
+exports.updateprofilephoto = function(req, res, next){
+    const userid = req.params.id;
+    const photopath = req.body.photopath;
+    const photoname = req.body.photoname;
+
+    if (!userid || !photopath || !photoname) {
+        return res.status(422).json({ success: false, message: 'Posted data is not correct or incompleted.'});
+    } else {
+        User.findById(userid).exec(function(err, user){
+		if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+			
+		if(user){
+            user.photopath = photopath;
+            user.photoname = photoname;
+
+		}
+		user.save(function(err){
+			if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err }); }
+			res.status(201).json({
+				success: true,
+				message: 'Profile Photo details updated successfully'
+			});
+		});
+	});
+   }
+}
+
+exports.updatePmtmethod = function(req, res, next){
+    const userid = req.params.id;
+    const pmtmethod = req.body.pmtmethod;
+    const ccno = req.body.ccno;
+    const ccholdername = req.body.ccholdername;
+    const ccissuerbank = req.body.ccissuerbank;
+    const expmth = req.body.expmth;
+    const expyr = req.body.expyr;
+    const ccvno = req.body.ccvno;
+
+    if (!userid) {
+        return res.status(422).json({ success: false, message: 'Posted data is not correct or incompleted.'});
+    } else {
+	User.findById(userid).exec(function(err, user){
+		if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+			
+		if(user){
+            user.pmtmethod = pmtmethod;
+            if (pmtmethod === 'PMTCC') {
+                user.ccno = ccno;
+                user.ccholdername = ccholdername;
+                user.ccissuerbank = ccissuerbank;
+                user.expmth = expmth;
+                user.expyr = expyr;
+                user.ccvno = ccvno;
+            }
+		}
+		user.save(function(err){
+			if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err }); }
+			res.status(201).json({
+				success: true,
+				message: 'User details updated successfully'
+			});
+		});
+	});
+   }
 }

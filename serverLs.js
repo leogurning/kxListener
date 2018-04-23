@@ -13,6 +13,8 @@ const user = require('./routes/user.js');
 const artistLn = require('./routes/artistLn.js');
 const albumLn = require('./routes/albumLn.js');
 const songLn = require('./routes/songLn.js');
+const songpurchase = require('./routes/songpurchase.js');
+const masterconfig = require('./routes/masterconfig.js');
 
 const port = process.env.PORT || config.serverport;
 
@@ -52,6 +54,8 @@ app.get('/', function(req, res) {
 
 app.post('/registerListener', user.signupListener);
 app.post('/checkfblistener/:id', user.checkFbListener);
+app.get('/msconfigbygroup/:group', masterconfig.getmsconfigbygroup); // API get msconfig details of the msconfigid
+app.get('/msconfigvalue/:code', masterconfig.getmsconfigvalue); // API returns msconfig value of the msconfig code
 
 // express router
 var apiRoutes = express.Router();
@@ -67,6 +71,8 @@ apiRoutes.get('/', function(req, res) {
 apiRoutes.get('/user/:id', user.getuserDetails); // API returns user details 
 apiRoutes.put('/user/:id', user.updateUser); // API updates user details
 apiRoutes.put('/password/:id', user.updatePassword); // API updates user password
+apiRoutes.put('/profilephoto/:id', user.updateprofilephoto); // API updates user photo
+apiRoutes.put('/pmtmethod/:id', user.updatePmtmethod); // API updates user pmt method
 
 apiRoutes.get('/artistln/:id', artistLn.getartist); // API returns artist details of given artist id
 apiRoutes.post('/artistln/reportln', artistLn.artistreportLn); //API returns artist report based on user input 
@@ -74,14 +80,15 @@ apiRoutes.post('/artistln/reportln', artistLn.artistreportLn); //API returns art
 apiRoutes.get('/albumln/:id', albumLn.getalbum); // API returns album details of given album id
 apiRoutes.post('/albumln/reportln', albumLn.albumreportLn); //API returns album report based on user input 
 apiRoutes.post('/albumln/aggreportln', albumLn.albumaggregateLn); //API returns album report based on user input
+apiRoutes.get('/albumaggln/:id', albumLn.getalbumaggregateLn); // API returns album details of given album id
 
 apiRoutes.post('/songln/aggreportln', songLn.songaggregateLn); //API returns song report based on user input
 apiRoutes.post('/songln/reportln', songLn.songreportLn);
 apiRoutes.put('/songbuyincrement/:id', songLn.songbuyincrement);
 apiRoutes.get('/songln/:id', songLn.getsong); // API get song details of the label
 apiRoutes.get('/songaggregate/:id', songLn.getsongaggregate); // API returns song details of given song id
-apiRoutes.get('/msconfiglist/:group', songLn.getmsconfigbygroup); // API returns msconfig details of given groupid
-apiRoutes.post('/songpurchase/:id', songLn.savesongpurchase);
+//apiRoutes.get('/msconfiglist/:group', songLn.getmsconfigbygroup); // API returns msconfig details of given groupid
+//apiRoutes.post('/songpurchase/:id', songLn.savesongpurchase);
 apiRoutes.post('/userplaylist/:id', songLn.addplaylist);
 apiRoutes.delete('/userplaylist/:id', songLn.removeplaylist); //API removes the playlist of given playlist id
 apiRoutes.get('/userplaylist/:id', songLn.getuserplaylist); // API returns user playlist details of given userid
@@ -89,6 +96,17 @@ apiRoutes.post('/playlist/:id', songLn.addsongtoplaylist);
 apiRoutes.delete('/playlist/:id', songLn.removesongfrplaylist); //API removes the song from playlist id
 apiRoutes.get('/playlist/:id', songLn.getsongplaylist); // API returns user playlist details of given userid
 apiRoutes.post('/ispurchased/:id', songLn.isPurchased); // API returns whether the song is purchased by listener
+apiRoutes.post('/songln/topaggreportln', songLn.topsongaggregate); //API returns topbuy song report based on user input
+apiRoutes.post('/songln/recentaggreportln', songLn.recentsongaggregate); //API returns recent song report based on user input
+
+apiRoutes.post('/songpurchase/:id', songpurchase.savesongpurchase); // API adds song purchase of the label
+apiRoutes.get('/songpurchase/:id', songpurchase.getsongpurchase); // API get song purchase of the label
+apiRoutes.delete('/songpurchase/:id', songpurchase.delsongpurchase); // API delete song purchase of the label
+apiRoutes.put('/songpurchase/:id', songpurchase.updatestatuspurchase); // API update status song purchase of the label
+apiRoutes.post('/songpurchaseagg/:id', songpurchase.songpurchaseagg);
+apiRoutes.post('/pendingsongpurchaseagg/:id', songpurchase.pendingsongpurchaseagg);
+apiRoutes.get('/songpurchaseagg/:id', songpurchase.getsongpurchaseagg);
+apiRoutes.post('/pendingsongpurchasecount/:labelid', songpurchase.pendingsongpurchasecount);
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/index.html'));
