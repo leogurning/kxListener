@@ -855,7 +855,7 @@ exports.recentsongaggregate = function(req, res, next){
             //let qmatch = {};
             
             if(!limit || limit < 1) {
-                limit = 10;
+                limit = 15;
             }
             
             if(!page || page < 1) {
