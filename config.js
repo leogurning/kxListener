@@ -8,8 +8,8 @@ module.exports = {
     'api_key': '487496572873139', 
     'api_secret': 'jmvqdISXnEp_vTxOCHe8Yl47HPw',
     /* Google Cloud Storage parameters */
-    'GCLOUD_PROJECT': 'kaxet-191909',
-    'CLOUD_BUCKET': 'kaxet',
+    'GCLOUD_PROJECT': 'kaxetd',
+    'CLOUD_BUCKET': 'kaxetd',
     /* REDIS CONF */
     'redis_server': 'redis-19243.c17.us-east-1-4.ec2.cloud.redislabs.com',
     'redis_port': 19243,

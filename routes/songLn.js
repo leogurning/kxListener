@@ -6,6 +6,7 @@ const Playlist = require('../models/playlist');
 const Userplaylist = require('../models/userplaylist');
 const config = require('../config');
 const Songpurchase = require('../models/songpurchase');
+var rediscli = require('../redisconn');
 
 var ObjId = mongoose.Types.ObjectId;
 var merge = function() {
@@ -420,30 +421,41 @@ exports.addplaylist = function(req, res, next){
         objuserid: userid
     });
         
-    oUserplaylist.save(function(err, oUserplaylist) {
+    oUserplaylist.save(function(err, ouserplist) {
         if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-    
+        let plid = ouserplist._id;
         res.status(200).json({
             success: true,
+            playlistid: plid,
             message: 'User playlist created successfully.'
         });
+        //Delete redis respective keys
+        rediscli.del('redis-user-plist-'+userid);
     });
 }
 
 exports.removeplaylist = function(req, res, next){
      const playlistid = req.params.id;
 
-     if (!playlistid) {
-         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
-     }
-    // If no error, delete user playlist
-    Userplaylist.remove({_id: playlistid}, function(err){
-        if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
-        Playlist.remove({playlistid: playlistid}, function(err){
+    if (!playlistid) {
+        return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
+    }
+    Userplaylist.findById(playlistid).exec(function(err, uplist) {
+        if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
+        let userid = uplist.userid;
+        //Delete redis respective keys
+        rediscli.del('redis-user-plist-'+userid);
+        // If no error, delete user playlist
+        Userplaylist.remove({_id: playlistid}, function(err){
             if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
-            res.status(201).json({
-                success: true,
-                message: 'Playlist removed successfully'
+            Playlist.remove({playlistid: playlistid}, function(err){
+                if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+                res.status(201).json({
+                    success: true,
+                    message: 'Playlist removed successfully'
+                });
+                //Delete redis respective keys
+                rediscli.del('redis-plist-'+playlistid);
             });
         });
     });
@@ -471,6 +483,8 @@ exports.addsongtoplaylist = function(req, res, next){
            success: true,
            message: 'Song added successfully to playlist.'
        });
+       //Delete redis respective keys
+       rediscli.del('redis-plist-'+playlistid);
    });
 }
 
@@ -480,12 +494,18 @@ exports.removesongfrplaylist = function(req, res, next){
     if (!playlistitemid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
-    // If no error, remove song to playlist
-    Playlist.remove({_id: playlistitemid}, function(err){
+    Playlist.findById(playlistitemid).exec(function(err, plist) {
         if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
-        res.status(201).json({
-            success: true,
-            message: 'Song removed successfully'
+        let playlistid = plist.playlistid;
+        //Delete redis respective keys
+        rediscli.del('redis-plist-'+playlistid);
+        // If no error, remove song to playlist
+        Playlist.remove({_id: playlistitemid}, function(err){
+            if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+            res.status(201).json({
+                success: true,
+                message: 'Song removed successfully'
+            });
         });
     });
 }
@@ -498,24 +518,39 @@ exports.getuserplaylist = function(req, res, next){
     if (!userid) {
         return res.status(422).send({ error: 'Parameter data is not correct or incompleted.'});
     }else{
-        // returns artists records based on query
-        query = { userid:userid };        
-        var fields = { 
-            _id:1, 
-            userid:1,
-            playlistname:1 
-        };
+        let keyredis = 'redis-user-plist-'+userid;
+        rediscli.get(keyredis, function(err, obj) { 
+            if (obj) {
+              //console.log('key on redis...');
+              res.status(201).json({
+                  success: true,
+                  data: JSON.parse(obj)
+              }); 
+            } else {
+                // returns artists records based on query
+                query = { userid:userid };        
+                var fields = { 
+                    _id:1, 
+                    userid:1,
+                    playlistname:1 
+                };
 
-        var psort = { playlistname: 1 };
+                var psort = { playlistname: 1 };
 
-        Userplaylist.find(query, fields).sort(psort).exec(function(err, result) {
-            if(err) { 
-                res.status(400).json({ success: false, message:'Error processing request '+ err }); 
-            } 
-            res.status(201).json({
-                success: true, 
-                data: result
-            });
+                Userplaylist.find(query, fields).sort(psort).exec(function(err, result) {
+                    if(err) { 
+                        res.status(400).json({ success: false, message:'Error processing request '+ err }); 
+                    } 
+                    res.status(201).json({
+                        success: true, 
+                        data: result
+                    });
+                    //set in redis
+                    rediscli.set(keyredis,JSON.stringify(result), function(error) {
+                        if (error) { throw error; }
+                    });
+                });
+            }
         });
     }
 }
@@ -523,80 +558,101 @@ exports.getuserplaylist = function(req, res, next){
 exports.getsongplaylist = function(req, res, next){
     
     const playlistid = req.params.id || req.query.playlistid;
-    var totalcount;
-    
-    let limit = parseInt(req.query.limit);
-    let page = parseInt(req.body.page || req.query.page);
-    let sortby = req.body.sortby || req.query.sortby;
-    let query = {};
-    //let qmatch = {};
-    
-    if(!limit || limit < 1) {
-        limit = 10;
-    }
-    
-    if(!page || page < 1) {
-        page = 1;
-    }
-    
-    if(!sortby) {
-        sortby = 'songname';
-    }
-    
-    // returns songs records based on query
-    query = { playlistid: playlistid };
-
-    var options = {
-        page: page,
-        limit: limit,
-        sortBy: sortby
-    }
-    
-    var aggregate = Playlist.aggregate();        
-    var olookup = {
-        from: 'song',
-        localField: 'objsongid',
-        foreignField: '_id',
-        as: 'songdetails'
-    };
-    var ounwind = 'songdetails';
-
-    var oproject = { 
-        _id:1,
-        playlistid:1,
-        songid:1,
-        objsongid:1,
-        "songname": "$songdetails.songname",
-        'songlyric':"$songdetails.songlyric",
-        "songprvwpath":"$songdetails.songprvwpath",
-        "songfilepath":"$songdetails.songfilepath"
-    };
+    let keyredis = 'redis-plist-'+playlistid;
+    rediscli.hgetall(keyredis, function(err, obj) { 
+        if (obj) {
+          //console.log('key on redis...');
+          res.status(201).json({
+              success: true,
+              data: JSON.parse(obj.plitems), 
+              npage: obj.npage,
+              totalcount: obj.totalcount              
+          }); 
+        } else {
+            var totalcount;
+            
+            let limit = parseInt(req.query.limit);
+            let page = parseInt(req.body.page || req.query.page);
+            let sortby = req.body.sortby || req.query.sortby;
+            let query = {};
+            //let qmatch = {};
+            
+            if(!limit || limit < 1) {
+                limit = 10;
+            }
+            
+            if(!page || page < 1) {
+                page = 1;
+            }
+            
+            if(!sortby) {
+                sortby = 'songname';
+            }
+            
+            // returns songs records based on query
+            query = { playlistid: playlistid };
         
-    aggregate.lookup(olookup).unwind(ounwind);
-    aggregate.match(query);  
-    aggregate.project(oproject);      
-    
-    //var osort = { "$sort": { sortby: 1}};
-    //aggregate.sort(osort);
-    
-    Playlist.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
-        if(err) 
-        {
-            res.status(400).json({
-                success: false, 
-                message: err.message
-            });
+            var options = {
+                page: page,
+                limit: limit,
+                sortBy: sortby
+            }
+            
+            var aggregate = Playlist.aggregate();        
+            var olookup = {
+                from: 'song',
+                localField: 'objsongid',
+                foreignField: '_id',
+                as: 'songdetails'
+            };
+            var ounwind = 'songdetails';
+        
+            var oproject = { 
+                _id:1,
+                playlistid:1,
+                songid:1,
+                objsongid:1,
+                "songname": "$songdetails.songname",
+                'songlyric':"$songdetails.songlyric",
+                "songprvwpath":"$songdetails.songprvwpath",
+                "songfilepath":"$songdetails.songfilepath"
+            };
+                
+            aggregate.lookup(olookup).unwind(ounwind);
+            aggregate.match(query);  
+            aggregate.project(oproject);      
+            
+            //var osort = { "$sort": { sortby: 1}};
+            //aggregate.sort(osort);
+            
+            Playlist.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+                if(err) 
+                {
+                    res.status(400).json({
+                        success: false, 
+                        message: err.message
+                    });
+                }
+                else
+                { 
+                    res.status(201).json({
+                        success: true, 
+                        data: results,
+                        npage: pageCount,
+                        totalcount: count
+                    });
+                    //set in redis
+                    rediscli.hmset(keyredis, [ 
+                        'plitems', JSON.stringify(results),
+                        'npage', pageCount,
+                        'totalcount', count ], function(err, reply) {
+                        if (err) {  console.log(err); }
+                        console.log(reply);
+                    }); 
+                }
+            })
         }
-        else
-        { 
-            res.status(201).json({
-                success: true, 
-                data: results,
-                npage: pageCount,
-                totalcount: count
-            });
-        }
-    })
+    });
 }
 
 exports.isPurchased = function(req, res, next){
@@ -636,121 +692,142 @@ exports.topsongaggregate = function(req, res, next){
     const msconfigsts = 'STSACT';
     var totalcount;
     
-    let limit = parseInt(req.query.limit);
-    let page = parseInt(req.body.page || req.query.page);
-    let sortby = req.body.sortby || req.query.sortby;
-    let query = {};
-    //let qmatch = {};
-    
-    if(!limit || limit < 1) {
-        limit = 10;
-    }
-    
-    if(!page || page < 1) {
-        page = 1;
-    }
-    
-    // returns songs records based on query
-    query = { "msconfigdetails.group": msconfiggrp,
-        "msconfigdetails.status": msconfigsts
-    };
-
-    if (status) {
-        query = merge(query, {status:status});
-    }
-    console.log(query);
-
-    if(!sortby) {
-        var options = {
-            page: page,
-            limit: limit
-        }
-    }
-    else {
-        var options = {
-            page: page,
-            limit: limit,
-            sortBy: sortby
-        }
-    }
-    
-    var aggregate = Song.aggregate();        
-    var olookup = {
-        from: 'artist',
-        localField: 'objartistid',
-        foreignField: '_id',
-        as: 'artistdetails'
-    };
-    var olookup1 = {
-        from: 'album',
-        localField: 'objalbumid',
-        foreignField: '_id',
-        as: 'albumdetails'
-    };
-    var olookup2 = {
-        from: 'msconfig',
-        localField: 'songgenre',
-        foreignField: 'code',
-        as: 'msconfigdetails'
-    };    
-    var ounwind = 'artistdetails';
-    var ounwind1 = 'albumdetails';
-    var ounwind2 = 'msconfigdetails';
-
-    var oproject = { 
-        _id:1,
-        labelid:1,
-        artistid:1,
-        albumid:1,
-        songname: 1,
-        songgenre:1,
-        "genrevalue": "$msconfigdetails.value",
-        songlyric:1,
-        songprice:1,
-        "artist": "$artistdetails.artistname",
-        "album": "$albumdetails.albumname",
-        "albumphoto": "$albumdetails.albumphotopath",
-        "albumyear": "$albumdetails.albumyear",
-        objartistid:1,
-        objalbumid:1,
-        songpublish:1,
-        songbuy:1,
-        status:1,
-        songprvwpath:1,
-        songprvwname:1,    
-        songfilepath:1,
-        songfilename:1,
-    };
+    let keyredis = 'redis-topsongs';
+    rediscli.hgetall(keyredis, function(err, obj) { 
+        if (obj) {
+          //console.log('key on redis...');
+          res.status(201).json({
+              success: true,
+              data: JSON.parse(obj.songs), 
+              npage: obj.npage,
+              totalcount: obj.totalcount              
+          }); 
+        } else {
+            let limit = parseInt(req.query.limit);
+            let page = parseInt(req.body.page || req.query.page);
+            let sortby = req.body.sortby || req.query.sortby;
+            let query = {};
+            //let qmatch = {};
+            
+            if(!limit || limit < 1) {
+                limit = 15;
+            }
+            
+            if(!page || page < 1) {
+                page = 1;
+            }
+            
+            // returns songs records based on query
+            query = { "msconfigdetails.group": msconfiggrp,
+                "msconfigdetails.status": msconfigsts
+            };
         
-    
-    aggregate.lookup(olookup).unwind(ounwind);
-    aggregate.lookup(olookup1).unwind(ounwind1);  
-    aggregate.lookup(olookup2).unwind(ounwind2);  
-    aggregate.match(query);  
-    aggregate.project(oproject);  
-    
-    if(!sortby) {
-        var osort = { songbuy:-1};
-        aggregate.sort(osort);
-    }
-    Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
-        if(err) 
-        {
-            res.status(400).json({
-                success: false, 
-                message: err.message
-            });
-        }
-        else
-        { 
-            res.status(201).json({
-                success: true, 
-                data: results,
-                npage: pageCount,
-                totalcount: count
-            });
-        }
-    })
+            if (status) {
+                query = merge(query, {status:status});
+            }
+            console.log(query);
+        
+            if(!sortby) {
+                var options = {
+                    page: page,
+                    limit: limit
+                }
+            }
+            else {
+                var options = {
+                    page: page,
+                    limit: limit,
+                    sortBy: sortby
+                }
+            }
+            
+            var aggregate = Song.aggregate();        
+            var olookup = {
+                from: 'artist',
+                localField: 'objartistid',
+                foreignField: '_id',
+                as: 'artistdetails'
+            };
+            var olookup1 = {
+                from: 'album',
+                localField: 'objalbumid',
+                foreignField: '_id',
+                as: 'albumdetails'
+            };
+            var olookup2 = {
+                from: 'msconfig',
+                localField: 'songgenre',
+                foreignField: 'code',
+                as: 'msconfigdetails'
+            };    
+            var ounwind = 'artistdetails';
+            var ounwind1 = 'albumdetails';
+            var ounwind2 = 'msconfigdetails';
+        
+            var oproject = { 
+                _id:1,
+                labelid:1,
+                artistid:1,
+                albumid:1,
+                songname: 1,
+                songgenre:1,
+                "genrevalue": "$msconfigdetails.value",
+                songlyric:1,
+                songprice:1,
+                "artist": "$artistdetails.artistname",
+                "album": "$albumdetails.albumname",
+                "albumphoto": "$albumdetails.albumphotopath",
+                "albumyear": "$albumdetails.albumyear",
+                objartistid:1,
+                objalbumid:1,
+                songpublish:1,
+                songbuy:1,
+                status:1,
+                songprvwpath:1,
+                songprvwname:1,    
+                songfilepath:1,
+                songfilename:1,
+            };
+                
+            
+            aggregate.lookup(olookup).unwind(ounwind);
+            aggregate.lookup(olookup1).unwind(ounwind1);  
+            aggregate.lookup(olookup2).unwind(ounwind2);  
+            aggregate.match(query);  
+            aggregate.project(oproject);  
+            
+            if(!sortby) {
+                var osort = { songbuy:-1};
+                aggregate.sort(osort);
+            }
+            Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+                if(err) 
+                {
+                    res.status(400).json({
+                        success: false, 
+                        message: err.message
+                    });
+                }
+                else
+                { 
+                    res.status(201).json({
+                        success: true, 
+                        data: results,
+                        npage: pageCount,
+                        totalcount: count
+                    });
+                    //set in redis
+                    rediscli.hmset(keyredis, [ 
+                        'songs', JSON.stringify(results),
+                        'npage', pageCount,
+                        'totalcount', count ], function(err, reply) {
+                        if (err) {  console.log(err); }
+                        console.log(reply);
+                    }); 
+                }
+            })
+        }    
+    });
 }
 
 exports.recentsongaggregate = function(req, res, next){
@@ -760,120 +837,141 @@ exports.recentsongaggregate = function(req, res, next){
     const msconfigsts = 'STSACT';
     var totalcount;
     
-    let limit = parseInt(req.query.limit);
-    let page = parseInt(req.body.page || req.query.page);
-    let sortby = req.body.sortby || req.query.sortby;
-    let query = {};
-    //let qmatch = {};
-    
-    if(!limit || limit < 1) {
-        limit = 10;
-    }
-    
-    if(!page || page < 1) {
-        page = 1;
-    }
-    
-    // returns songs records based on query
-    query = { "msconfigdetails.group": msconfiggrp,
-        "msconfigdetails.status": msconfigsts
-    };
-
-    if (status) {
-        query = merge(query, {status:status});
-    }
-    console.log(query);
-
-    if(!sortby) {
-        var options = {
-            page: page,
-            limit: limit
-        }
-    }
-    else {
-        var options = {
-            page: page,
-            limit: limit,
-            sortBy: sortby
-        }
-    }
-    
-    var aggregate = Song.aggregate();        
-    var olookup = {
-        from: 'artist',
-        localField: 'objartistid',
-        foreignField: '_id',
-        as: 'artistdetails'
-    };
-    var olookup1 = {
-        from: 'album',
-        localField: 'objalbumid',
-        foreignField: '_id',
-        as: 'albumdetails'
-    };
-    var olookup2 = {
-        from: 'msconfig',
-        localField: 'songgenre',
-        foreignField: 'code',
-        as: 'msconfigdetails'
-    };    
-    var ounwind = 'artistdetails';
-    var ounwind1 = 'albumdetails';
-    var ounwind2 = 'msconfigdetails';
-
-    var oproject = { 
-        _id:1,
-        labelid:1,
-        artistid:1,
-        albumid:1,
-        songname: 1,
-        songgenre:1,
-        "genrevalue": "$msconfigdetails.value",
-        songlyric:1,
-        songprice:1,
-        "artist": "$artistdetails.artistname",
-        "album": "$albumdetails.albumname",
-        "albumphoto": "$albumdetails.albumphotopath",
-        "albumyear": "$albumdetails.albumyear",
-        objartistid:1,
-        objalbumid:1,
-        songpublish:1,
-        songbuy:1,
-        status:1,
-        songprvwpath:1,
-        songprvwname:1,    
-        songfilepath:1,
-        songfilename:1,
-        createddt:1
-    };
+    let keyredis = 'redis-recentsongs';
+    rediscli.hgetall(keyredis, function(err, obj) { 
+        if (obj) {
+          //console.log('key on redis...');
+          res.status(201).json({
+              success: true,
+              data: JSON.parse(obj.songs), 
+              npage: obj.npage,
+              totalcount: obj.totalcount              
+          }); 
+        } else {
+            let limit = parseInt(req.query.limit);
+            let page = parseInt(req.body.page || req.query.page);
+            let sortby = req.body.sortby || req.query.sortby;
+            let query = {};
+            //let qmatch = {};
+            
+            if(!limit || limit < 1) {
+                limit = 10;
+            }
+            
+            if(!page || page < 1) {
+                page = 1;
+            }
+            
+            // returns songs records based on query
+            query = { "msconfigdetails.group": msconfiggrp,
+                "msconfigdetails.status": msconfigsts
+            };
         
-    
-    aggregate.lookup(olookup).unwind(ounwind);
-    aggregate.lookup(olookup1).unwind(ounwind1);  
-    aggregate.lookup(olookup2).unwind(ounwind2);  
-    aggregate.match(query);  
-    aggregate.project(oproject);  
-    
-    if(!sortby) {
-        var osort = { createddt:-1};
-        aggregate.sort(osort);
-    }
-    Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
-        if(err) 
-        {
-            res.status(400).json({
-                success: false, 
-                message: err.message
-            });
+            if (status) {
+                query = merge(query, {status:status});
+            }
+            console.log(query);
+        
+            if(!sortby) {
+                var options = {
+                    page: page,
+                    limit: limit
+                }
+            }
+            else {
+                var options = {
+                    page: page,
+                    limit: limit,
+                    sortBy: sortby
+                }
+            }
+            
+            var aggregate = Song.aggregate();        
+            var olookup = {
+                from: 'artist',
+                localField: 'objartistid',
+                foreignField: '_id',
+                as: 'artistdetails'
+            };
+            var olookup1 = {
+                from: 'album',
+                localField: 'objalbumid',
+                foreignField: '_id',
+                as: 'albumdetails'
+            };
+            var olookup2 = {
+                from: 'msconfig',
+                localField: 'songgenre',
+                foreignField: 'code',
+                as: 'msconfigdetails'
+            };    
+            var ounwind = 'artistdetails';
+            var ounwind1 = 'albumdetails';
+            var ounwind2 = 'msconfigdetails';
+        
+            var oproject = { 
+                _id:1,
+                labelid:1,
+                artistid:1,
+                albumid:1,
+                songname: 1,
+                songgenre:1,
+                "genrevalue": "$msconfigdetails.value",
+                songlyric:1,
+                songprice:1,
+                "artist": "$artistdetails.artistname",
+                "album": "$albumdetails.albumname",
+                "albumphoto": "$albumdetails.albumphotopath",
+                "albumyear": "$albumdetails.albumyear",
+                objartistid:1,
+                objalbumid:1,
+                songpublish:1,
+                songbuy:1,
+                status:1,
+                songprvwpath:1,
+                songprvwname:1,    
+                songfilepath:1,
+                songfilename:1,
+                createddt:1
+            };
+                
+            
+            aggregate.lookup(olookup).unwind(ounwind);
+            aggregate.lookup(olookup1).unwind(ounwind1);  
+            aggregate.lookup(olookup2).unwind(ounwind2);  
+            aggregate.match(query);  
+            aggregate.project(oproject);  
+            
+            if(!sortby) {
+                var osort = { createddt:-1};
+                aggregate.sort(osort);
+            }
+            Song.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+                if(err) 
+                {
+                    res.status(400).json({
+                        success: false, 
+                        message: err.message
+                    });
+                }
+                else
+                { 
+                    res.status(201).json({
+                        success: true, 
+                        data: results,
+                        npage: pageCount,
+                        totalcount: count
+                    });
+                    //set in redis
+                    rediscli.hmset(keyredis, [ 
+                        'songs', JSON.stringify(results),
+                        'npage', pageCount,
+                        'totalcount', count ], function(err, reply) {
+                        if (err) {  console.log(err); }
+                        console.log(reply);
+                    }); 
+                }
+            })
         }
-        else
-        { 
-            res.status(201).json({
-                success: true, 
-                data: results,
-                npage: pageCount,
-                totalcount: count
-            });
-        }
-    })
+    });
 }
