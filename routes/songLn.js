@@ -470,7 +470,7 @@ exports.addsongtoplaylist = function(req, res, next){
     Playlist.findOne({songid:songid}, function(err, plist) {
         if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
         if (plist) {
-            { return res.status(204).json({ success: false, message: 'Song has been added to the playlist ! ' }); }                   
+            return res.status(201).json({ success: false, message: 'Song has been added to the playlist !' });
         } else {
             Song.findById(songid).exec(function(err, song) {
                 if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
@@ -494,14 +494,14 @@ exports.addsongtoplaylist = function(req, res, next){
                 });
            
                 oPlaylist.save(function(err, oPlaylist) {
-                if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-        
-                res.status(200).json({
-                    success: true,
-                    message: 'Song added successfully to playlist.'
-                });
-                //Delete redis respective keys
-                rediscli.del('redis-plist-'+playlistid);
+                    if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+            
+                    res.status(200).json({
+                        success: true,
+                        message: 'Song added successfully to playlist.'
+                    });
+                    //Delete redis respective keys
+                    rediscli.del('redis-plist-'+playlistid);
                 });
             });
         }        
