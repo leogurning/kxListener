@@ -118,10 +118,9 @@ exports.getsongaggregate = function(req, res, next){
         songfilename:1,
     };
 
-    aggregate.lookup(olookup).unwind(ounwind);
+    aggregate.match(query).lookup(olookup).unwind(ounwind);  
     aggregate.lookup(olookup1).unwind(ounwind1);  
     aggregate.lookup(olookup2).unwind(ounwind2);  
-    aggregate.match(query);  
     aggregate.project(oproject);      
   
     aggregate.exec(function(err, result) {
@@ -468,24 +467,38 @@ exports.addsongtoplaylist = function(req, res, next){
     if (!playlistid || !songid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
-   // If no error, add song to playlist
-   let oPlaylist = new Playlist({
-        playlistid: playlistid,
-        songid: songid,
-        objplaylistid: playlistid,
-        objsongid: songid
-   });
-       
-   oPlaylist.save(function(err, oPlaylist) {
-       if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+    Song.findById(songid).exec(function(err, song) {
+        if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
+        let labelid = song.labelid;
+        let artistid = song.artistid;
+        let albumid = song.albumid;
+        let songgenre = song.songgenre;
+           // If no error, add song to playlist
+        let oPlaylist = new Playlist({
+            playlistid: playlistid,
+            songid: songid,
+            labelid: labelid,
+            artistid: artistid,
+            albumid: albumid,
+            songgenre: songgenre,
+            objplaylistid: playlistid,
+            objsongid: songid,
+            objlabelid: labelid,
+            objartistid: artistid,
+            objalbumid: albumid
+        });
    
-       res.status(200).json({
-           success: true,
-           message: 'Song added successfully to playlist.'
-       });
-       //Delete redis respective keys
-       rediscli.del('redis-plist-'+playlistid);
-   });
+        oPlaylist.save(function(err, oPlaylist) {
+        if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+
+        res.status(200).json({
+            success: true,
+            message: 'Song added successfully to playlist.'
+        });
+        //Delete redis respective keys
+        rediscli.del('redis-plist-'+playlistid);
+        });
+    });
 }
 
 exports.removesongfrplaylist = function(req, res, next){
@@ -558,6 +571,9 @@ exports.getuserplaylist = function(req, res, next){
 exports.getsongplaylist = function(req, res, next){
     
     const playlistid = req.params.id || req.query.playlistid;
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
+
     let keyredis = 'redis-plist-'+playlistid;
     rediscli.hgetall(keyredis, function(err, obj) { 
         if (obj) {
@@ -590,7 +606,9 @@ exports.getsongplaylist = function(req, res, next){
             }
             
             // returns songs records based on query
-            query = { playlistid: playlistid };
+            query = { playlistid: playlistid,
+                "msconfigdetails.group": msconfiggrp,
+                "msconfigdetails.status": msconfigsts };
         
             var options = {
                 page: page,
@@ -606,20 +624,61 @@ exports.getsongplaylist = function(req, res, next){
                 as: 'songdetails'
             };
             var ounwind = 'songdetails';
-        
+            var olookup1 = {
+                from: 'artist',
+                localField: 'objartistid',
+                foreignField: '_id',
+                as: 'artistdetails'
+            };
+            var olookup2 = {
+                from: 'album',
+                localField: 'objalbumid',
+                foreignField: '_id',
+                as: 'albumdetails'
+            };
+            var olookup3 = {
+                from: 'msconfig',
+                localField: 'songgenre',
+                foreignField: 'code',
+                as: 'msconfigdetails'
+            };    
+            var ounwind1 = 'artistdetails';
+            var ounwind2 = 'albumdetails';
+            var ounwind3 = 'msconfigdetails';
+
             var oproject = { 
                 _id:1,
                 playlistid:1,
                 songid:1,
+                labelid:1,
+                artistid:1,
+                albumid:1,
+                songgenre:1,
                 objsongid:1,
+                objlabelid:1,
+                objartistid:1,
+                objalbumid:1,
                 "songname": "$songdetails.songname",
                 'songlyric':"$songdetails.songlyric",
+                'songprice':"$songdetails.songprice", 
                 "songprvwpath":"$songdetails.songprvwpath",
-                "songfilepath":"$songdetails.songfilepath"
+                "songprvwname":"$songdetails.songprvwname",
+                "songfilepath":"$songdetails.songfilepath",
+                "songfilename":"$songdetails.songfilename",
+                "songpublish":"$songdetails.songpublish",
+                "songbuy":"$songdetails.songbuy",
+                "artist": "$artistdetails.artistname",
+                "album": "$albumdetails.albumname",
+                "albumphoto": "$albumdetails.albumphotopath",
+                "albumyear": "$albumdetails.albumyear",
+                "genrevalue": "$msconfigdetails.value",
             };
                 
-            aggregate.lookup(olookup).unwind(ounwind);
+            aggregate.lookup(olookup3).unwind(ounwind3);
             aggregate.match(query);  
+            aggregate.lookup(olookup).unwind(ounwind);
+            aggregate.lookup(olookup1).unwind(ounwind1);
+            aggregate.lookup(olookup2).unwind(ounwind2);
             aggregate.project(oproject);      
             
             //var osort = { "$sort": { sortby: 1}};
