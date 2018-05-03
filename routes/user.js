@@ -75,7 +75,7 @@ exports.login = function(req, res, next){
     
                             res.status(201).json({
                                 success: true,
-                                message: {'userid': user._id, 'username': user.username, 'name': user.name, 'usertype': user.usertype, 'balance': user.balance, 'lastlogin': last_login, 'filepath': user.filepath},
+                                message: {'userid': user._id, 'username': user.username, 'name': user.name, 'usertype': user.usertype, 'balance': user.balance, 'lastlogin': last_login, 'filepath': user.photopath},
                                 token: token
                             });
                         });
