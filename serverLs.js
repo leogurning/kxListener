@@ -98,6 +98,7 @@ apiRoutes.get('/playlist/:id', songLn.getsongplaylist); // API returns user play
 apiRoutes.post('/ispurchased/:id', songLn.isPurchased); // API returns whether the song is purchased by listener
 apiRoutes.post('/songln/topaggreportln', songLn.topsongaggregate); //API returns topbuy song report based on user input
 apiRoutes.post('/songln/recentaggreportln', songLn.recentsongaggregate); //API returns recent song report based on user input
+apiRoutes.post('/userpl/:id', songLn.getuserplaylistagg); // API returns user playlist details of given userid
 
 apiRoutes.post('/songpurchase/:id', songpurchase.savesongpurchase); // API adds song purchase of the label
 apiRoutes.get('/songpurchase/:id', songpurchase.getsongpurchase); // API get song purchase of the label

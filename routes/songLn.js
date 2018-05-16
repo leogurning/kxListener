@@ -429,7 +429,7 @@ exports.addplaylist = function(req, res, next){
             message: 'User playlist created successfully.'
         });
         //Delete redis respective keys
-        rediscli.del('redis-user-plist-'+userid);
+        rediscli.del('redis-user-plist-'+userid, 'redis-user-plistagg-'+userid);
     });
 }
 
@@ -443,7 +443,7 @@ exports.removeplaylist = function(req, res, next){
         if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
         let userid = uplist.userid;
         //Delete redis respective keys
-        rediscli.del('redis-user-plist-'+userid);
+        rediscli.del('redis-user-plist-'+userid, 'redis-user-plistagg-'+userid);
         // If no error, delete user playlist
         Userplaylist.remove({_id: playlistid}, function(err){
             if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
@@ -1040,4 +1040,123 @@ exports.recentsongaggregate = function(req, res, next){
             })
         }
     });
+}
+
+exports.getuserplaylistagg = function(req, res, next){
+    const userid = req.params.id;
+    const sortby = 'playlistname';
+    let query = {};
+
+    if (!userid) {
+        return res.status(422).send({ error: 'Parameter data is not correct or incompleted.'});
+    }else{
+        let keyredis = 'redis-user-plistagg-'+userid;
+        rediscli.hgetall(keyredis, function(err, obj) { 
+            if (obj) {
+              //console.log('key on redis...');
+              res.status(201).json({
+                  success: true,
+                  data: JSON.parse(obj.data), 
+                  npage: obj.npage,
+                  totalcount: obj.totalcount              
+              }); 
+            } else {
+                let limit = parseInt(req.query.limit);
+                let page = parseInt(req.body.page || req.query.page);
+                let sortby = req.body.sortby || req.query.sortby;
+                let query = {};
+                //let qmatch = {};
+                
+                if(!limit || limit < 1) {
+                    limit = 10;
+                }
+                
+                if(!page || page < 1) {
+                    page = 1;
+                }
+                
+                if(!sortby) {
+                    sortby = 'playlistname';
+                }
+                
+                // returns songs records based on query
+                //query = { "userpldetails.userid": userid };
+                query = { userid: userid };    
+                var options = {
+                    page: page,
+                    limit: limit,
+                    sortBy: sortby
+                }
+                
+                var aggregate = Userplaylist.aggregate();    
+             
+                var olookup = {
+                    from: 'playlist',
+                    localField: '_id',
+                    foreignField: 'objplaylistid',
+                    as: 'pldetails'
+                };
+                //var ounwind = { "path": "$pldetails", "preserveNullAndEmptyArrays": true };
+                var olookup1 = {
+                    from: 'album',
+                    localField: 'pldetails',
+                    foreignField: '_id',
+                    as: 'albumdetails'
+                };
+                //var ounwind1 = 'albumdetails';
+        
+                var oproject = { 
+                    _id:1,
+                    userid:1,
+                    playlistname:1,
+                    "pldetails": "$pldetails.objalbumid",
+                    "noofsongs": { $size: "$pldetails.objalbumid" }
+                }; 
+                var oproject1 = { 
+                    _id:1,
+                    userid:1,
+                    playlistname:1,
+                    "noofsongs": 1,
+                    "albumdetails": "$albumdetails.albumphotopath"
+                };     
+                //aggregate.lookup(olookup).unwind(ounwind);
+                //aggregate.lookup(olookup);
+                aggregate.match(query);
+                aggregate.lookup(olookup);  
+                aggregate.project(oproject);
+                aggregate.lookup(olookup1); 
+                aggregate.project(oproject1);  
+                
+                //var osort = { "$sort": { sortby: 1}};
+                //aggregate.sort(osort);
+                
+                Userplaylist.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+                    if(err) 
+                    {
+                        res.status(400).json({
+                            success: false, 
+                            message: err.message
+                        });
+                    }
+                    else
+                    { 
+                        res.status(201).json({
+                            success: true, 
+                            data: results,
+                            npage: pageCount,
+                            totalcount: count
+                        });
+                        //set in redis
+                        rediscli.hmset(keyredis, [ 
+                            'data', JSON.stringify(results),
+                            'npage', pageCount,
+                            'totalcount', count ], function(err, reply) {
+                            if (err) {  console.log(err); }
+                            console.log(reply);
+                        }); 
+                    }
+                });
+            }
+        });
+    }
 }
