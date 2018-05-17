@@ -463,8 +463,9 @@ exports.removeplaylist = function(req, res, next){
 exports.addsongtoplaylist = function(req, res, next){
     const playlistid = req.params.id;
     const songid = req.body.songid;
+    const userid = req.body.userid;
 
-    if (!playlistid || !songid) {
+    if (!playlistid || !songid || !userid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
     Playlist.findOne({songid:songid}, function(err, plist) {
@@ -501,7 +502,7 @@ exports.addsongtoplaylist = function(req, res, next){
                         message: 'Song added successfully to playlist.'
                     });
                     //Delete redis respective keys
-                    rediscli.del('redis-plist-'+playlistid);
+                    rediscli.del('redis-plist-'+playlistid, 'redis-user-plistagg-'+userid);
                 });
             });
         }        
@@ -510,15 +511,16 @@ exports.addsongtoplaylist = function(req, res, next){
 
 exports.removesongfrplaylist = function(req, res, next){
     const playlistitemid = req.params.id;
-
-    if (!playlistitemid) {
+    const userid = req.body.userid;
+    
+    if (!playlistitemid || !userid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
     Playlist.findById(playlistitemid).exec(function(err, plist) {
         if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
         let playlistid = plist.playlistid;
         //Delete redis respective keys
-        rediscli.del('redis-plist-'+playlistid);
+        rediscli.del('redis-plist-'+playlistid, 'redis-user-plistagg-'+userid);
         // If no error, remove song to playlist
         Playlist.remove({_id: playlistitemid}, function(err){
             if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
