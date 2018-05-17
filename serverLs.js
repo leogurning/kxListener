@@ -94,6 +94,7 @@ apiRoutes.delete('/userplaylist/:id', songLn.removeplaylist); //API removes the 
 apiRoutes.get('/userplaylist/:id', songLn.getuserplaylist); // API returns user playlist details of given userid
 apiRoutes.post('/playlist/:id', songLn.addsongtoplaylist);
 apiRoutes.delete('/playlist/:id', songLn.removesongfrplaylist); //API removes the song from playlist id
+apiRoutes.post('/delplaylist/:id', songLn.removesongfrplaylist); //API removes the song from playlist id
 apiRoutes.get('/playlist/:id', songLn.getsongplaylist); // API returns user playlist details of given userid
 apiRoutes.post('/ispurchased/:id', songLn.isPurchased); // API returns whether the song is purchased by listener
 apiRoutes.post('/songln/topaggreportln', songLn.topsongaggregate); //API returns topbuy song report based on user input
