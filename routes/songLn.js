@@ -468,7 +468,7 @@ exports.addsongtoplaylist = function(req, res, next){
     if (!playlistid || !songid || !userid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
-    Playlist.findOne({songid:songid}, function(err, plist) {
+    Playlist.findOne({songid:songid, playlistid:playlistid}, function(err, plist) {
         if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
         if (plist) {
             return res.status(201).json({ success: false, message: 'Song has been added to the playlist !' });
@@ -512,7 +512,7 @@ exports.addsongtoplaylist = function(req, res, next){
 exports.removesongfrplaylist = function(req, res, next){
     const playlistitemid = req.params.id;
     const userid = req.body.userid;
-    
+
     if (!playlistitemid || !userid) {
         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
     }
