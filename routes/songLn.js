@@ -471,39 +471,46 @@ exports.addsongtoplaylist = function(req, res, next){
     Playlist.findOne({songid:songid, playlistid:playlistid}, function(err, plist) {
         if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
         if (plist) {
-            return res.status(201).json({ success: false, message: 'Song has been added to the playlist !' });
+            return res.status(201).json({ success: false, message: 'Duplicate ! Song has already been added to the playlist !' });
         } else {
             Song.findById(songid).exec(function(err, song) {
-                if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
-                let labelid = song.labelid;
-                let artistid = song.artistid;
-                let albumid = song.albumid;
-                let songgenre = song.songgenre;
-                   // If no error, add song to playlist
-                let oPlaylist = new Playlist({
-                    playlistid: playlistid,
-                    songid: songid,
-                    labelid: labelid,
-                    artistid: artistid,
-                    albumid: albumid,
-                    songgenre: songgenre,
-                    objplaylistid: playlistid,
-                    objsongid: songid,
-                    objlabelid: labelid,
-                    objartistid: artistid,
-                    objalbumid: albumid
-                });
-           
-                oPlaylist.save(function(err, oPlaylist) {
-                    if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-            
-                    res.status(200).json({
-                        success: true,
-                        message: 'Song added successfully to playlist.'
+                if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }       
+                if (song) {
+                    let labelid = song.labelid;
+                    let artistid = song.artistid;
+                    let albumid = song.albumid;
+                    let songgenre = song.songgenre;
+                       // If no error, add song to playlist
+                    let oPlaylist = new Playlist({
+                        playlistid: playlistid,
+                        songid: songid,
+                        labelid: labelid,
+                        artistid: artistid,
+                        albumid: albumid,
+                        songgenre: songgenre,
+                        objplaylistid: playlistid,
+                        objsongid: songid,
+                        objlabelid: labelid,
+                        objartistid: artistid,
+                        objalbumid: albumid
                     });
-                    //Delete redis respective keys
-                    rediscli.del('redis-plist-'+playlistid, 'redis-user-plistagg-'+userid);
-                });
+               
+                    oPlaylist.save(function(err, oPlaylist) {
+                        if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+                
+                        res.status(200).json({
+                            success: true,
+                            message: 'Song added successfully to playlist.'
+                        });
+                        //Delete redis respective keys
+                        rediscli.del('redis-plist-'+playlistid, 'redis-user-plistagg-'+userid);
+                    });
+                } else {
+                    res.status(400).json({
+                        success: false,
+                        message: 'Error. There is no Song provided or invalid song id.'
+                    });
+                }
             });
         }        
     });
