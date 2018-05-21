@@ -3,13 +3,6 @@ module.exports = {
     'tokenexp': '365d',
     'secret': '!$3cret4@uth',
     'database': 'mongodb://admindb:kaxetadmin@ds127506.mlab.com:27506/kaxetdb',
-    /* Cloudinary parameters */
-    'cloud_name': 'legu', 
-    'api_key': '487496572873139', 
-    'api_secret': 'jmvqdISXnEp_vTxOCHe8Yl47HPw',
-    /* Google Cloud Storage parameters */
-    'GCLOUD_PROJECT': 'kaxetd',
-    'CLOUD_BUCKET': 'kaxetd',
     /* REDIS CONF */
     'redis_server': 'redis-19243.c17.us-east-1-4.ec2.cloud.redislabs.com',
     'redis_port': 19243,

@@ -60,7 +60,7 @@ exports.savesongpurchase = function(req, res, next){
                 message: 'Song purchase saved successfully'
             });
             //Delete redis respective keys
-            rediscli.del('redis-user-pendingsongpurchase-cnt-'+labelid);
+            rediscli.del('redis-user-pendingsongpurchase-cnt-'+labelid, 'redis-user-pendingsongpurchase-cnt-'+listenerid);
         });
     }
 }
@@ -79,28 +79,31 @@ exports.getsongpurchase = function(req, res, next){
   
 exports.delsongpurchase = function(req, res, next) {
     const songpurchaseid = req.params.id;
-    Songpurchase.remove({_id: songpurchaseid}, function(err){
+    /* Songpurchase.remove({_id: songpurchaseid}, function(err){
         if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
         res.status(201).json({
             success: true,
             message: 'Song purchase removed successfully'
         });
-    });
-/*     Songpurchase.findById(songpurchaseid).exec(function(err, songpurchase){ 
-        if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+    }); */
+    Songpurchase.findById(songpurchaseid).exec(function(err, songpurchase){ 
+        if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
         if (songpurchase) {
             let labelid = songpurchase.labelid;
+            let listenerid = songpurchase.listenerid;
             //Delete redis respective keys
-            rediscli.del('redis-user-songpurchase-'+labelid, 'redis-user-songpurchasecnt-'+labelid);
-        }
-        Songpurchase.remove({_id: songpurchaseid}, function(err){
-            if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
-            res.status(201).json({
-                success: true,
-                message: 'Song purchase removed successfully'
+            rediscli.del('redis-user-pendingsongpurchase-cnt-'+labelid, 'redis-user-pendingsongpurchase-cnt-'+listenerid);
+            Songpurchase.remove({_id: songpurchaseid}, function(err){
+                if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+                res.status(201).json({
+                    success: true,
+                    message: 'Song purchase removed successfully'
+                });
             });
-        });
-    }); */  
+        } else {
+            return res.status(400).json({ success: false, message: 'Error. There is no Song purchase data. '});
+        }
+    });  
 }
 
 exports.updatestatuspurchase = function(req, res, next){
@@ -111,21 +114,24 @@ exports.updatestatuspurchase = function(req, res, next){
         return res.status(422).json({ success: false, message: 'Posted data is not correct or incompleted.'});
     } else {
         Songpurchase.findById(songpurchaseid).exec(function(err, songpurchase){
-            if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
+            if(err){ return res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
                 
             if(songpurchase){
                 let labelid = songpurchase.labelid;
+                let listenerid = songpurchase.listenerid;
                 songpurchase.status = status;
                 songpurchase.approvedt = new Date();
                 songpurchase.save(function(err){
-                    if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err }); }
+                    if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err }); }
                     res.status(201).json({
                       success: true,
                       message: 'Song Purchase updated successfully'
                     });
                     //Delete redis respective keys
-                    rediscli.del('redis-user-pendingsongpurchase-cnt-'+labelid);
+                    rediscli.del('redis-user-pendingsongpurchase-cnt-'+labelid, 'redis-user-pendingsongpurchase-cnt-'+listenerid);
                 });  
+            } else {
+                return res.status(400).json({ success: false, message: 'Error. There is no Song purchase data. '});
             }
         });
     }
@@ -194,19 +200,28 @@ exports.songpurchaseagg = function(req, res, next){
 
 		} else if (rptype === 'opt2'){
             // return records within given date range
-            fromdt.setDate(fromdt.getDate() - 1);
-            todt.setDate(todt.getDate() + 1);
+            fromdt.setDate(fromdt.getDate());
+            fromdt.setHours(0,0,0);
+            todt.setDate(todt.getDate());
+            todt.setHours(23,59,59);
             query = merge(query, { purchasedt:{$gte: fromdt, $lte: todt} });
 
 		} else if (rptype === 'opt3') {
             // returns today expense records for the user
             let ptodt = new Date();
-            let dt = ptodt.getUTCDate() + 1;
-			let month = ptodt.getUTCMonth() + 1; //months from 1-12
-			let year = ptodt.getUTCFullYear();
+            //let dt = ptodt.getUTCDate() + 1;
+            let dt = ptodt.getDate();
+			let month = ptodt.getMonth() + 1; //months from 1-12
+            let year = ptodt.getFullYear();
             let pfromdt = new Date(year + "/" + month + "/" + dt);
-            query = merge(query, { purchasedt:{$gte: pfromdt, $lte: ptodt} });
-		}
+            pfromdt.setHours(0,0,0);
+            let todt = new Date(year + "/" + month + "/" + dt);
+            todt.setHours(23,59,59);
+            query = merge(query, { purchasedt:{$gte: pfromdt, $lte: todt} });
+
+		} else {
+            console.log('Retrieve all purchase date.');
+        }
         if (artistname) {
             query = merge(query, {"artistdetails.artistname": new RegExp(artistname,'i')});
         }
@@ -398,19 +413,28 @@ exports.pendingsongpurchaseagg = function(req, res, next){
 
 		} else if (rptype === 'opt2'){
             // return records within given date range
-            fromdt.setDate(fromdt.getDate() - 1);
-            todt.setDate(todt.getDate() + 1);
+            fromdt.setDate(fromdt.getDate());
+            fromdt.setHours(0,0,0);
+            todt.setDate(todt.getDate());
+            todt.setHours(23,59,59);
             query = merge(query, { purchasedt:{$gte: fromdt, $lte: todt} });
 
 		} else if (rptype === 'opt3') {
             // returns today expense records for the user
             let ptodt = new Date();
-            let dt = ptodt.getUTCDate() + 1;
-			let month = ptodt.getUTCMonth() + 1; //months from 1-12
-			let year = ptodt.getUTCFullYear();
+            //let dt = ptodt.getUTCDate() + 1;
+            let dt = ptodt.getDate();
+            let month = ptodt.getMonth() + 1; //months from 1-12
+            let year = ptodt.getFullYear();
             let pfromdt = new Date(year + "/" + month + "/" + dt);
-            query = merge(query, { purchasedt:{$gte: pfromdt, $lte: ptodt} });
-		}
+            pfromdt.setHours(0,0,0);
+            let todt = new Date(year + "/" + month + "/" + dt);
+            todt.setHours(23,59,59);
+            query = merge(query, { purchasedt:{$gte: pfromdt, $lte: todt} });
+
+		} else {
+            console.log('Retrieve all purchase date.');
+        }
         if (artistname) {
             query = merge(query, {"artistdetails.artistname": new RegExp(artistname,'i')});
         }

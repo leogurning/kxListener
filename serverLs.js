@@ -108,7 +108,7 @@ apiRoutes.put('/songpurchase/:id', songpurchase.updatestatuspurchase); // API up
 apiRoutes.post('/songpurchaseagg/:id', songpurchase.songpurchaseagg);
 apiRoutes.post('/pendingsongpurchaseagg/:id', songpurchase.pendingsongpurchaseagg);
 apiRoutes.get('/songpurchaseagg/:id', songpurchase.getsongpurchaseagg);
-apiRoutes.post('/pendingsongpurchasecount/:labelid', songpurchase.pendingsongpurchasecount);
+apiRoutes.post('/pendingsongpurchasecount/:id', songpurchase.pendingsongpurchasecount);
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/index.html'));
