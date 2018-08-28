@@ -57,6 +57,7 @@ exports.savesongpurchase = function(req, res, next){
                 
             res.status(201).json({
                 success: true,
+                orderId: oSongpurchase._id,
                 message: 'Song purchase saved successfully'
             });
             //Delete redis respective keys
@@ -312,6 +313,10 @@ exports.songpurchaseagg = function(req, res, next){
             "albumphoto": "$albumdetails.albumphotopath",
             "song": "$songdetails.songname",
             "songfile": "$songdetails.songfilepath",
+            "songfilename": "$songdetails.songfilename",
+            "songprvw": "$songdetails.songprvwpath",
+            "songprvwname": "$songdetails.songprvwname",
+            "songlyric": "$songdetails.songlyric",
             purchasedt:1,
             approvedt:1,
             objartistid:1,
@@ -333,7 +338,7 @@ exports.songpurchaseagg = function(req, res, next){
         aggregate.lookup(olookup1).unwind(ounwind1);
         aggregate.project(oproject);      
         if(!sortby) {
-            var osort = { purchasedt: 1, songprice:1, artistid:1};
+            var osort = { purchasedt: -1, songprice:1, artistid:1};
             aggregate.sort(osort);
         }
         Songpurchase.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
@@ -507,6 +512,10 @@ exports.pendingsongpurchaseagg = function(req, res, next){
             "album": "$albumdetails.albumname",
             "albumphoto": "$albumdetails.albumphotopath",
             "song": "$songdetails.songname",
+            "songfile": "$songdetails.songfilepath",
+            "songfilename": "$songdetails.songfilename",
+            "songprvw": "$songdetails.songprvwpath",
+            "songprvwname": "$songdetails.songprvwname",
             purchasedt:1,
             approvedt:1,
             objartistid:1,
@@ -631,6 +640,11 @@ exports.getsongpurchaseagg = function(req, res, next){
         "album": "$albumdetails.albumname",
         "albumphoto": "$albumdetails.albumphotopath",
         "song": "$songdetails.songname",
+        "songfile": "$songdetails.songfilepath",
+        "songfilename": "$songdetails.songfilename",
+        "songprvw": "$songdetails.songprvwpath",
+        "songprvwname": "$songdetails.songprvwname",
+        "songlyric": "$songdetails.songlyric",
         purchasedt:1,
         approvedt:1,
         objartistid:1,

@@ -16,7 +16,7 @@ const songLn = require('./routes/songLn.js');
 const songpurchase = require('./routes/songpurchase.js');
 const masterconfig = require('./routes/masterconfig.js');
 
-const port = process.env.PORT || config.serverport;
+const port = process.env.PORT || process.env.KXLISP_SERVICE_PORT || config.serverport;
 
 mongoose.connect(config.database, function(err){
 	if(err){
@@ -56,6 +56,11 @@ app.post('/registerListener', user.signupListener);
 app.post('/checkfblistener/:id', user.checkFbListener);
 app.get('/msconfigbygroup/:group', masterconfig.getmsconfigbygroup); // API get msconfig details of the msconfigid
 app.get('/msconfigvalue/:code', masterconfig.getmsconfigvalue); // API returns msconfig value of the msconfig code
+/* app.post('/topaggreportln/:id', songLn.topsongaggregateln); //API returns topbuy song report based on user input
+app.post('/recentaggreportln/:id', songLn.recentsongaggregateln); //API returns recent song report based on user input
+app.post('/songaggreportln/:id', songLn.songaggregateLn2); //API returns song report based on user input
+app.post('/playlistln/:id', songLn.getsongplaylist2); //API returns song in the specified playlist report based on user input 
+*/
 
 // express router
 var apiRoutes = express.Router();
@@ -75,7 +80,8 @@ apiRoutes.put('/profilephoto/:id', user.updateprofilephoto); // API updates user
 apiRoutes.put('/pmtmethod/:id', user.updatePmtmethod); // API updates user pmt method
 
 apiRoutes.get('/artistln/:id', artistLn.getartist); // API returns artist details of given artist id
-apiRoutes.post('/artistln/reportln', artistLn.artistreportLn); //API returns artist report based on user input 
+//apiRoutes.post('/artistln/reportln', artistLn.artistreportLn); //API returns artist report based on user input 
+apiRoutes.post('/artistln/reportln', artistLn.artistaggregateLn); //API returns artist report based on user input 
 
 apiRoutes.get('/albumln/:id', albumLn.getalbum); // API returns album details of given album id
 apiRoutes.post('/albumln/reportln', albumLn.albumreportLn); //API returns album report based on user input 
@@ -109,6 +115,11 @@ apiRoutes.post('/songpurchaseagg/:id', songpurchase.songpurchaseagg);
 apiRoutes.post('/pendingsongpurchaseagg/:id', songpurchase.pendingsongpurchaseagg);
 apiRoutes.get('/songpurchaseagg/:id', songpurchase.getsongpurchaseagg);
 apiRoutes.post('/pendingsongpurchasecount/:id', songpurchase.pendingsongpurchasecount);
+
+apiRoutes.post('/songln/topaggreportln2/:id', songLn.topsongaggregateln); //API returns topbuy song report based on user input
+apiRoutes.post('/songln/recentaggreportln2/:id', songLn.recentsongaggregateln); //API returns recent song report based on user input
+apiRoutes.post('/songln/aggreportln2/:id', songLn.songaggregateLn2); //API returns song report based on user input
+apiRoutes.post('/playlist2/:id', songLn.getsongplaylist2); //API returns song in the specified playlist report based on user input
 
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public/index.html'));

@@ -9,6 +9,7 @@ exports.signupListener = function(req, res, next){
      const email = req.body.email;
      const username = req.body.username;
      const password = req.body.password;
+     const usertype = 'LIS';
 
      if (!name || !email || !username || !password) {
          return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
@@ -18,17 +19,25 @@ exports.signupListener = function(req, res, next){
          if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
  
          // If user is not unique, return error
-         if (existingUser) {
+         if (existingUser && existingUser.status != 'STSRJCT') {
              return res.status(201).json({
                  success: false,
                  message: 'Username already exists.'
              });
          }
         // If no error, create account
-
-        let oUser = new User({
+        User.findOne({ $and:[{email:email.toLowerCase()}, {usertype: usertype}] }, function(err, eUser) {
+            if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+                    // If user is not unique, return error
+            if (eUser && eUser.status != 'STSRJCT') {
+                return res.status(201).json({
+                    success: false,
+                    message: 'Email address is already linked to another user.'
+                });
+            }
+            let oUser = new User({
                 name: name,
-                email: email,
+                email: email.toLowerCase(),
                 contactno: '-',
                 bankaccno: '-',
                 bankname: '-',
@@ -39,12 +48,13 @@ exports.signupListener = function(req, res, next){
                 balance: 0
             });
         
-        oUser.save(function(err, oUser) {
-            if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-        
-            res.status(200).json({
-                success: true,
-                message: 'User created successfully. You can now login as Listener.'
+            oUser.save(function(err, oUser) {
+                if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+            
+                res.status(200).json({
+                    success: true,
+                    message: 'User created successfully. You can now login as Listener.'
+                });
             });
         });
     });
@@ -68,7 +78,7 @@ exports.login = function(req, res, next){
                         
                         // login success update last login
                         user.lastlogin = new Date();
-                    
+                        
                         
                         user.save(function(err) {
                             if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
@@ -131,29 +141,45 @@ exports.updateUser = function(req, res, next){
     const bankcode = req.body.bankcode;
     const bankname = req.body.bankname;
     const userid = req.params.id;
+    const usertype = 'LIS';
 
     if (!name || !email || !userid) {
         return res.status(422).json({ success: false, message: 'Posted data is not correct or incompleted.'});
     } else {
-	User.findById(userid).exec(function(err, user){
+	  User.findById(userid).exec(function(err, user){
 		if(err){ res.status(400).json({ success: false, message: 'Error processing request '+ err }); }
 			
 		if(user){
-			user.name = name;
-			user.email = email;
-            user.contactno = contactno;
-            user.bankaccno = bankaccno;
-            user.bankcode = bankcode;
-            user.bankname = bankname;
-		}
-		user.save(function(err){
-			if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err }); }
-			res.status(201).json({
-				success: true,
-				message: 'User details updated successfully'
-			});
-		});
-	});
+            User.findOne({ $and:[{email:email.toLowerCase()}, {usertype: usertype}, {_id:{$ne: userid}}] }, function(err, eUser) {
+                if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+                        // If user is not unique, return error
+                if (eUser && eUser.status != 'STSRJCT') {
+                    return res.status(201).json({
+                        success: false,
+                        message: 'Email address is already linked to another user.'
+                    });
+                }
+                user.name = name;
+                user.email = email.toLowerCase();
+                user.contactno = contactno;
+                user.bankaccno = bankaccno;
+                user.bankcode = bankcode;
+                user.bankname = bankname;
+                user.save(function(err){
+                    if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err }); }
+                    res.status(200).json({
+                        success: true,
+                        message: 'User details updated successfully'
+                    });
+                });
+            });
+		} else {
+            return res.status(201).json({
+                success: false,
+                message: 'Error finding user data.'
+            });
+        }
+	  });
    }
 }
 
@@ -196,6 +222,7 @@ exports.checkFbListener = function(req, res, next){
     const appid = req.params.id;
     const name = req.query.name;
     const email = req.query.email;
+    const usertype = 'LIS';
 
      if (!appid || !name || !email) {
          return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
@@ -205,17 +232,25 @@ exports.checkFbListener = function(req, res, next){
          if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
  
          // If user is not unique, return error
-         if (existingUser) {
+         if (existingUser && existingUser.status != 'STSRJCT') {
              return res.status(201).json({
                  success: true,
                  message: 'Username already exists.'
              });
          }
         // If no error, create account
-
-        let oUser = new User({
+        User.findOne({ $and:[{email:email.toLowerCase()}, {usertype: usertype}] }, function(err, eUser) {
+            if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+                    // If user is not unique, return error
+            if (eUser && eUser.status != 'STSRJCT') {
+                return res.status(201).json({
+                    success: false,
+                    message: 'Email address is already linked to another user.'
+                });
+            }
+            let oUser = new User({
                 name: name,
-                email: email,
+                email: email.toLowerCase(),
                 contactno: '-',
                 bankaccno: '-',
                 bankname: '-',
@@ -226,12 +261,13 @@ exports.checkFbListener = function(req, res, next){
                 balance: 0
             });
         
-        oUser.save(function(err, oUser) {
-            if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-        
-            res.status(200).json({
-                success: true,
-                message: 'User created successfully. You can now login as Listener.'
+            oUser.save(function(err, oUser) {
+                if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+            
+                res.status(200).json({
+                    success: true,
+                    message: 'User created successfully. You can now login as Listener.'
+                });
             });
         });
     });

@@ -144,6 +144,7 @@ exports.albumaggregateLn = function(req, res, next){
     const status = req.body.status || req.query.status;
     const msconfiggrp = 'GENRE';
     const msconfigsts = 'STSACT';
+    const songpublish = 'Y';
     var totalcount;
 
     let limit = parseInt(req.query.limit);
@@ -167,7 +168,11 @@ exports.albumaggregateLn = function(req, res, next){
     query = { albumname: new RegExp(albumname,'i'), 
         albumyear: new RegExp(albumyear,'i'),
         "msconfigdetails.group": msconfiggrp,
-        "msconfigdetails.status": msconfigsts
+        "msconfigdetails.status": msconfigsts,
+        "artistdetails.status": msconfigsts,
+        "labeldetails.status": msconfigsts,
+        "sgdetails.songpublish": songpublish,
+        "sgdetails.status": msconfigsts,
     };
     
     if (artistid) {
@@ -197,7 +202,22 @@ exports.albumaggregateLn = function(req, res, next){
         localField: 'albumgenre',
         foreignField: 'code',
         as: 'msconfigdetails'
-    };    
+    };
+    var olookup2 = {
+        from: 'user',
+        localField: 'objlabelid',
+        foreignField: '_id',
+        as: 'labeldetails'
+    };
+    var olookup3 = {
+        from: 'song',
+        localField: '_id',
+        foreignField: 'objalbumid',
+        as: 'sgdetails'
+    };
+
+    var ounwind2 = 'labeldetails';
+
     var ounwind = 'artistdetails';
     var ounwind1 = 'msconfigdetails';
     var oproject = {
@@ -209,15 +229,20 @@ exports.albumaggregateLn = function(req, res, next){
         "genrevalue": "$msconfigdetails.value",
         objartistid:1,
         "artist": "$artistdetails.artistname",
+        "labelname": "$labeldetails.name",
         albumprice:1,
         status:1,
         albumphotopath:1,
-        albumphotoname:1        
+        albumphotoname:1,
+        "sgdetails": "$sgdetails.objalbumid",
+        "noofsongs": { $size: "$sgdetails.objalbumid" }        
     };
 
     //var osort = { "$sort": { sortby: 1}};
     aggregate.lookup(olookup).unwind(ounwind);
-    aggregate.lookup(olookup1).unwind(ounwind1);  
+    aggregate.lookup(olookup1).unwind(ounwind1);
+    aggregate.lookup(olookup2).unwind(ounwind2); 
+    aggregate.lookup(olookup3); 
     aggregate.match(query);  
     aggregate.project(oproject);
     //aggregate.sort(osort);
