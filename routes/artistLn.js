@@ -149,7 +149,7 @@ exports.artistaggregateLn = function(req, res, next){
         foreignField: '_id',
         as: 'albumdetails'
     };
-    //var ounwind1 = 'albumdetails';
+    var ounwind1 = 'albumdetails';
     var olookup2 = {
         from: 'user',
         localField: 'objlabelid',
@@ -163,30 +163,39 @@ exports.artistaggregateLn = function(req, res, next){
         artistid:1,
         artistname:1,
         artistphotopath:1,
-        artistphotopath:1,
         about:1,
         "sgdetails": "$sgdetails.objalbumid",
         "noofsongs": { $size: "$sgdetails.objalbumid" }
     }; 
+     
+    group = { _id: "$_id" , 
+                artistname: { $first: '$artistname' },
+                artistphotopath: { $first: '$artistphotopath' },
+                about: { $first: '$about' },
+                "noofsongs": { $first: '$noofsongs' },
+                albumdetails: { $push: "$albumdetails"}
+            };
+
     var oproject1 = { 
         _id:1,
         artistid:1,
         artistname:1,
         artistphotopath:1,
-        artistphotopath:1,
         about:1,
         "noofsongs": 1,
         "albumdetails": "$albumdetails.albumphotopath"
-    };     
+    };      
 
     //aggregate.lookup(olookup);
     aggregate.lookup(olookup2).unwind(ounwind2);
     aggregate.lookup(olookup);
     aggregate.match(query);
     aggregate.project(oproject);
-    aggregate.lookup(olookup1);
-    aggregate.match(query1); 
-    aggregate.project(oproject1);  
+    aggregate.unwind("sgdetails");
+    aggregate.lookup(olookup1).unwind(ounwind1);
+    aggregate.match(query1);
+    aggregate.group(group); 
+    aggregate.project(oproject1);
     
     //var osort = { "$sort": { sortby: 1}};
     //aggregate.sort(osort);
