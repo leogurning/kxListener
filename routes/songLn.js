@@ -1665,7 +1665,7 @@ exports.songaggregateLn2 = function(req, res, next){
     });
     
 }
-
+/*
 exports.getsongplaylist2 = function(req, res, next){
     
     const playlistid = req.params.id || req.query.playlistid;
@@ -1874,6 +1874,194 @@ exports.getsongplaylist2 = function(req, res, next){
         }
     });
 }
+*/
+exports.getsongplaylist2 = function(req, res, next){
+    
+    const playlistid = req.params.id || req.query.playlistid;
+    const listenerid = req.body.listenerid || req.query.listenerid;
+    const msconfiggrp = 'GENRE';
+    const msconfigsts = 'STSACT';
+    const pustatus = 'STSAPV';
+    const estatus = 'STSACT';
+
+    if (!playlistid || !listenerid) {
+        res.status(400).json({
+            success: false, 
+            message: 'Input Parameters are not fully provided.'
+        });
+    }
+    var totalcount;
+    
+    let limit = parseInt(req.query.limit);
+    let page = parseInt(req.body.page || req.query.page);
+    let sortby = req.body.sortby || req.query.sortby;
+    let query = {};
+    let query1 = {};
+    //let qmatch = {};
+    
+    if(!limit || limit < 1) {
+        limit = 10;
+    }
+    
+    if(!page || page < 1) {
+        page = 1;
+    }
+    
+    if(!sortby) {
+        sortby = 'songname';
+    }
+    
+    // returns songs records based on query
+    query = { playlistid: playlistid,
+        "msconfigdetails.group": msconfiggrp,
+        "msconfigdetails.status": msconfigsts };
+
+    var options = {
+        page: page,
+        limit: limit,
+        sortBy: sortby
+    }
+    
+    var aggregate = Playlist.aggregate(); 
+    var aggregate1 = Song.aggregate(); 
+
+    var olookup = {
+        from: 'song',
+        localField: 'objsongid',
+        foreignField: '_id',
+        as: 'songdetails'
+    };
+    var ounwind = 'songdetails';
+    var olookup1 = {
+        from: 'artist',
+        localField: 'objartistid',
+        foreignField: '_id',
+        as: 'artistdetails'
+    };
+    var olookup2 = {
+        from: 'album',
+        localField: 'objalbumid',
+        foreignField: '_id',
+        as: 'albumdetails'
+    };
+    var olookup3 = {
+        from: 'msconfig',
+        localField: 'songgenre',
+        foreignField: 'code',
+        as: 'msconfigdetails'
+    };    
+    var ounwind1 = 'artistdetails';
+    var ounwind2 = 'albumdetails';
+    var ounwind3 = 'msconfigdetails';
+
+    var oproject = { 
+        _id:1,
+        playlistid:1,
+        songid:1,
+        labelid:1,
+        artistid:1,
+        albumid:1,
+        songgenre:1,
+        objsongid:1,
+        objlabelid:1,
+        objartistid:1,
+        objalbumid:1,
+        "songname": "$songdetails.songname",
+        'songlyric':"$songdetails.songlyric",
+        'songprice':"$songdetails.songprice", 
+        "songprvwpath":"$songdetails.songprvwpath",
+        "songprvwname":"$songdetails.songprvwname",
+        "songfilepath":"$songdetails.songfilepath",
+        "songfilename":"$songdetails.songfilename",
+        "songpublish":"$songdetails.songpublish",
+        //"songbuy":"$songdetails.songbuy",
+        "artist": "$artistdetails.artistname",
+        "album": "$albumdetails.albumname",
+        "albumphoto": "$albumdetails.albumphotopath",
+        "albumyear": "$albumdetails.albumyear",
+        "genrevalue": "$msconfigdetails.value",
+        //"pcsdtl":"$purchasedtls",
+        "pcsflag":{
+            $cond: [{
+                    $eq: ["$purchasedtls", []]
+                },
+                'N', "Y"
+            ]
+        }
+    };
+    
+    query1 = { "purchasedetails.listenerid": listenerid, "purchasedetails.status": pustatus,
+                status:estatus  }; 
+    var olookuppc = {
+            from: 'songpurchase',
+            localField: '_id',
+            foreignField: 'objsongid',
+            as: 'purchasedetails'
+    };
+    var ounwindpc = {path: "$purchasedetails", preserveNullAndEmptyArrays: true };
+
+    var oprojectpc = { 
+            _id:1,
+            songname: 1,
+            "listenerid": "$purchasedetails.listenerid",
+            "pcstatus":"$purchasedetails.status",
+            "pmtmtd": "$purchasedetails.paymentmtd"
+    };
+    let group = { _id: "$_id", 
+            count: { $sum: 1}
+    };
+
+    var olookuppcs = {
+            from: 'pcdtl-'+listenerid,
+            localField: 'objsongid',
+            foreignField: '_id',
+            as: 'purchasedtls'
+    }
+    aggregate1.lookup(olookuppc).unwind(ounwindpc);
+    aggregate1.match(query1);  
+    aggregate1.project(oprojectpc);
+    aggregate1.group(group); 
+    aggregate1.out('pcdtl-'+listenerid);
+    aggregate1.exec(function(err, result){
+        if (err) {
+            res.status(400).json({
+                success: false, 
+                message: err.message
+            });
+        }
+        aggregate.lookup(olookup3).unwind(ounwind3);
+        aggregate.match(query);  
+        aggregate.lookup(olookup).unwind(ounwind);
+        aggregate.lookup(olookup1).unwind(ounwind1);
+        aggregate.lookup(olookup2).unwind(ounwind2);
+        aggregate.lookup(olookuppcs);
+        aggregate.project(oproject);      
+        
+        //var osort = { "$sort": { sortby: 1}};
+        //aggregate.sort(osort);
+        
+        Playlist.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+            if(err) 
+            {
+                res.status(400).json({
+                    success: false, 
+                    message: err.message
+                });
+            }
+            else
+            { 
+                res.status(201).json({
+                    success: true, 
+                    data: results,
+                    npage: pageCount,
+                    totalcount: count
+                });
+                
+            }
+        })
+    });
+            
+}
 
 exports.recentsongaggregate = function(req, res, next){
     
@@ -2036,7 +2224,7 @@ exports.recentsongaggregate = function(req, res, next){
         }
     });
 }
-
+/*
 exports.getuserplaylistagg = function(req, res, next){
     const userid = req.params.id;
     const sortby = 'playlistname';
@@ -2153,5 +2341,106 @@ exports.getuserplaylistagg = function(req, res, next){
                 });
             }
         });
+    }
+}
+*/
+exports.getuserplaylistagg = function(req, res, next){
+    const userid = req.params.id;
+    const sortby = 'playlistname';
+    let query = {};
+
+    if (!userid) {
+        return res.status(422).send({ error: 'Parameter data is not correct or incompleted.'});
+    }else{
+        
+        let limit = parseInt(req.query.limit);
+        let page = parseInt(req.body.page || req.query.page);
+        let sortby = req.body.sortby || req.query.sortby;
+        let query = {};
+        //let qmatch = {};
+        
+        if(!limit || limit < 1) {
+            limit = 10;
+        }
+        
+        if(!page || page < 1) {
+            page = 1;
+        }
+        
+        if(!sortby) {
+            sortby = 'playlistname';
+        }
+        
+        // returns songs records based on query
+        //query = { "userpldetails.userid": userid };
+        query = { userid: userid };    
+        var options = {
+            page: page,
+            limit: limit,
+            sortBy: sortby
+        }
+        
+        var aggregate = Userplaylist.aggregate();    
+        
+        var olookup = {
+            from: 'playlist',
+            localField: '_id',
+            foreignField: 'objplaylistid',
+            as: 'pldetails'
+        };
+        //var ounwind = { "path": "$pldetails", "preserveNullAndEmptyArrays": true };
+        var olookup1 = {
+            from: 'album',
+            localField: 'pldetails',
+            foreignField: '_id',
+            as: 'albumdetails'
+        };
+        //var ounwind1 = 'albumdetails';
+
+        var oproject = { 
+            _id:1,
+            userid:1,
+            playlistname:1,
+            "pldetails": "$pldetails.objalbumid",
+            "noofsongs": { $size: "$pldetails.objalbumid" }
+        }; 
+        var oproject1 = { 
+            _id:1,
+            userid:1,
+            playlistname:1,
+            "noofsongs": 1,
+            "albumdetails": "$albumdetails.albumphotopath"
+        };     
+        //aggregate.lookup(olookup).unwind(ounwind);
+        //aggregate.lookup(olookup);
+        aggregate.match(query);
+        aggregate.lookup(olookup);  
+        aggregate.project(oproject);
+        aggregate.lookup(olookup1); 
+        aggregate.project(oproject1);  
+        
+        //var osort = { "$sort": { sortby: 1}};
+        //aggregate.sort(osort);
+        
+        Userplaylist.aggregatePaginate(aggregate, options, function(err, results, pageCount, count) {
+            if(err) 
+            {
+                res.status(400).json({
+                    success: false, 
+                    message: err.message
+                });
+            }
+            else
+            { 
+                res.status(201).json({
+                    success: true, 
+                    data: results,
+                    npage: pageCount,
+                    totalcount: count
+                });
+
+            }
+        });
+         
     }
 }

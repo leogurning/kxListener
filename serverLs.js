@@ -62,6 +62,10 @@ app.post('/songaggreportln/:id', songLn.songaggregateLn2); //API returns song re
 app.post('/playlistln/:id', songLn.getsongplaylist2); //API returns song in the specified playlist report based on user input 
 */
 
+app.get('/openkaxetandroidapp', function(req, res) {  
+    res.redirect('https://play.google.com/store/apps/details?id=kaxet.com');
+})
+
 // express router
 var apiRoutes = express.Router();
 app.use('/api', apiRoutes);
