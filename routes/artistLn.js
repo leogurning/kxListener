@@ -88,7 +88,7 @@ exports.artistreportLn = function(req, res, next){
 exports.artistaggregateLn = function(req, res, next){
     
     const artistid = req.body.artistid || req.query.artistid;
-    //const artistname = req.body.artistname || req.query.artistname;
+    const artistname = req.body.artistname || req.query.artistname;
     const songpublish = 'Y';
     const status = req.body.status || req.query.status;
     const estatus = 'STSACT';
@@ -117,10 +117,15 @@ exports.artistaggregateLn = function(req, res, next){
         "sgdetails.status": estatus,
         "labeldetails.status": estatus  
     };
+    
     query1 = { "albumdetails.status": estatus };
 
     if (artistid) {
         query = merge(query, {artistid:artistid});
+    }
+
+    if (artistname) {
+        query = merge(query, {artistname: new RegExp(artistname,'i')});
     }
 
     if (status) {

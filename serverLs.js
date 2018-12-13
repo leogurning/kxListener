@@ -101,6 +101,7 @@ apiRoutes.get('/songaggregate/:id', songLn.getsongaggregate); // API returns son
 //apiRoutes.post('/songpurchase/:id', songLn.savesongpurchase);
 apiRoutes.post('/userplaylist/:id', songLn.addplaylist);
 apiRoutes.delete('/userplaylist/:id', songLn.removeplaylist); //API removes the playlist of given playlist id
+apiRoutes.post('/deluserplaylist/:id', songLn.removeplaylist); //API removes the playlist of given playlist id
 apiRoutes.get('/userplaylist/:id', songLn.getuserplaylist); // API returns user playlist details of given userid
 apiRoutes.post('/playlist/:id', songLn.addsongtoplaylist);
 apiRoutes.delete('/playlist/:id', songLn.removesongfrplaylist); //API removes the song from playlist id

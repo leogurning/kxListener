@@ -61,6 +61,86 @@ exports.signupListener = function(req, res, next){
 }
 
 exports.login = function(req, res, next){
+    const usertype = 'LIS';
+    const status = 'STSACT'
+    // find the user
+    User.findOne({ username: req.body.username, status: status }, function(err, user) {
+		if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+
+		if (!user) {
+            
+            User.findOne({ $and:[{email:req.body.username.toLowerCase()}, {usertype: usertype}], status: status }, function(err, eUser) {
+                if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+                        // If user is not unique, return error
+                
+                if (eUser && eUser.status != 'STSRJCT') {
+                    
+                    eUser.comparePassword(req.body.password, function (err, isMatch) {
+                        if (isMatch && !err) {
+                            var token = jwt.sign({data:eUser}, config.secret, {
+                                expiresIn: config.tokenexp});
+                            
+                            let last_login = eUser.lastlogin;
+                            
+                            // login success update last login
+                            eUser.lastlogin = new Date();
+                            
+                            
+                            eUser.save(function(err) {
+                                if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+        
+                                res.status(201).json({
+                                    success: true,
+                                    message: {'userid': eUser._id, 'username': eUser.username, 'name': eUser.name, 'usertype': eUser.usertype, 'balance': eUser.balance, 'lastlogin': last_login, 'filepath': eUser.photopath},
+                                    token: token
+                                });
+                            });
+                        } else {
+                            res.status(201).json({ success: false, message: 'Incorrect password credentials.' });
+                        }
+                    });	
+
+                } else {
+                    return res.status(201).json({ success: false, message: 'Incorrect user login credentials.' });
+                }
+            
+            });
+		}else if (user) {
+            if (user.status == 'STSACT') {
+                user.comparePassword(req.body.password, function (err, isMatch) {
+                    if (isMatch && !err) {
+                        var token = jwt.sign({data:user}, config.secret, {
+                            expiresIn: config.tokenexp});
+                        
+                        let last_login = user.lastlogin;
+                        
+                        // login success update last login
+                        user.lastlogin = new Date();
+                        
+                        
+                        user.save(function(err) {
+                            if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+    
+                            res.status(201).json({
+                                success: true,
+                                message: {'userid': user._id, 'username': user.username, 'name': user.name, 'usertype': user.usertype, 'balance': user.balance, 'lastlogin': last_login, 'filepath': user.photopath},
+                                token: token
+                            });
+                        });
+                    } else {
+                        res.status(201).json({ success: false, message: 'Incorrect password credentials.' });
+                    }
+                });	
+    
+            } else {
+                //console.log('This not active condition.');
+                res.status(201).json({ success: false, message: 'Incorrect user account. User is not active yet.' });
+            }
+        }
+	});
+}
+/*
+exports.login = function(req, res, next){
     // find the user
     User.findOne({ username: req.body.username }, function(err, user) {
 		if(err){ res.status(400).json({ success: false, message:'Error processing request '+ err}); }
@@ -101,7 +181,7 @@ exports.login = function(req, res, next){
         }
 	});
 }
-
+*/
 exports.authenticate = function(req, res, next){
     // check header or url parameters or post parameters for token
 	var token = req.body.token || req.query.token || req.headers['authorization'];
@@ -222,53 +302,83 @@ exports.checkFbListener = function(req, res, next){
     const appid = req.params.id;
     const name = req.query.name;
     const email = req.query.email;
+    const photopath = req.body.photopath
     const usertype = 'LIS';
 
      if (!appid || !name || !email) {
-         return res.status(201).json({ success: false, message: 'Posted data is not correct or incomplete.'});
+         return res.status(201).json({ success: false, code: '000', message: 'Posted data is not correct or incomplete.'});
      }
  
      User.findOne({ username: appid }, function(err, existingUser) {
-         if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
+         if(err){ return res.status(201).json({ success: false, code: '001', message:'Error processing request '+ err}); }
  
          // If user is not unique, return error
          if (existingUser && existingUser.status != 'STSRJCT') {
              return res.status(201).json({
                  success: true,
+                 code: '002',
                  message: 'Username already exists.'
              });
          }
         // If no error, create account
         User.findOne({ $and:[{email:email.toLowerCase()}, {usertype: usertype}] }, function(err, eUser) {
-            if(err){ return res.status(400).json({ success: false, message:'Error processing request '+ err}); }
+            if(err){ return res.status(400).json({ success: false, code: '003', message:'Error processing request '+ err}); }
                     // If user is not unique, return error
             if (eUser && eUser.status != 'STSRJCT') {
                 return res.status(201).json({
                     success: false,
+                    code: '004',
                     message: 'Email address is already linked to another user.'
                 });
             }
-            let oUser = new User({
-                name: name,
-                email: email.toLowerCase(),
-                contactno: '-',
-                bankaccno: '-',
-                bankname: '-',
-                username: appid,
-                password: appid,
-                usertype: 'LIS',
-                status: 'STSACT',
-                balance: 0
-            });
-        
-            oUser.save(function(err, oUser) {
-                if(err){ return res.status(201).json({ success: false, message:'Error processing request '+ err}); }
-            
-                res.status(200).json({
-                    success: true,
-                    message: 'User created successfully. You can now login as Listener.'
+
+            if (photopath) {
+                let oUser = new User({
+                    name: name,
+                    email: email.toLowerCase(),
+                    contactno: '-',
+                    bankaccno: '-',
+                    bankname: '-',
+                    username: appid,
+                    password: appid,
+                    photopath:photopath,
+                    photoname:appid,
+                    usertype: 'LIS',
+                    status: 'STSACT',
+                    balance: 0
                 });
-            });
+            
+                oUser.save(function(err, oUser) {
+                    if(err){ return res.status(201).json({ success: false, code: '005', message:'Error processing request '+ err}); }
+                
+                    res.status(200).json({
+                        success: true,
+                        message: 'User created successfully. You can now login as Listener.'
+                    });
+                });
+            } else {
+                let oUser = new User({
+                    name: name,
+                    email: email.toLowerCase(),
+                    contactno: '-',
+                    bankaccno: '-',
+                    bankname: '-',
+                    username: appid,
+                    password: appid,
+                    usertype: 'LIS',
+                    status: 'STSACT',
+                    balance: 0
+                });
+            
+                oUser.save(function(err, oUser) {
+                    if(err){ return res.status(201).json({ success: false, code: '005', message:'Error processing request '+ err}); }
+                
+                    res.status(200).json({
+                        success: true,
+                        message: 'User created successfully. You can now login as Listener.'
+                    });
+                });
+            }
         });
     });
 }
